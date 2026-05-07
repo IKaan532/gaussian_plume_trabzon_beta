@@ -129,12 +129,14 @@ def plot_mapbox(
 
     fig = go.Figure()
 
+    radius = 12 if sc.source_type == "line" else 18
+
     fig.add_trace(
         go.Densitymapbox(
             lat        = lat_flat[mask],
             lon        = lon_flat[mask],
             z          = cq_log_v,
-            radius     = 18,
+            radius     = radius,
             colorscale = "YlOrRd",
             opacity    = 0.72,
             zmin       = float(np.nanmin(cq_log_v)),
@@ -172,18 +174,32 @@ def plot_mapbox(
         )
 
     if sc.source_type == "line" and result.segments:
-        road_lat = [s["lat"] for s in result.segments[::3]]
-        road_lon = [s["lon"] for s in result.segments[::3]]
-        fig.add_trace(
-            go.Scattermapbox(
-                lat        = road_lat,
-                lon        = road_lon,
-                mode       = "markers",
-                marker     = dict(size=3, color="steelblue", opacity=0.5),
-                name       = "Road network",
-                hoverinfo  = "skip",
+        road_colors_map = {
+            "motorway": "#e74c3c", "trunk": "#e67e22", "primary": "#f1c40f",
+            "secondary": "#2ecc71", "tertiary": "#3498db", "residential": "#bdc3c7",
+        }
+        by_class: dict[str, list] = {}
+        for seg in result.segments:
+            cls = seg.get("road_class", "residential")
+            by_class.setdefault(cls, []).append(seg)
+
+        for cls, segs in by_class.items():
+            lats_line: list = []
+            lons_line: list = []
+            for seg in segs:
+                lats_line += [seg["lat"], seg["lat"], None]
+                lons_line += [seg["lon"], seg["lon"], None]
+            fig.add_trace(
+                go.Scattermapbox(
+                    lat        = lats_line,
+                    lon        = lons_line,
+                    mode       = "lines",
+                    line       = dict(width=2, color=road_colors_map.get(cls, "#888")),
+                    name       = f"Road: {cls}",
+                    hoverinfo  = "skip",
+                    opacity    = 0.75,
+                )
             )
-        )
 
     fig.add_trace(
         go.Scattermapbox(

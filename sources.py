@@ -84,7 +84,7 @@ def _interpolate_segment(
 
 def fetch_roads(
     bbox: tuple[float, float, float, float] = TRABZON_BBOX,
-    timeout: int = 30,
+    timeout: int = 60,
 ) -> list[dict]:
     """
     Query Overpass API for road ways inside *bbox*.
@@ -95,13 +95,17 @@ def fetch_roads(
     south, west, north, east = bbox
     query = _OVERPASS_QUERY.format(south=south, west=west, north=north, east=east)
 
-    try:
-        resp = requests.post(OVERPASS_URL, data={"data": query}, timeout=timeout)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as exc:
-        logger.warning("Overpass API unavailable (%s). Using fallback road set.", exc)
-        return _fallback_roads()
+    for attempt in range(2):
+        try:
+            resp = requests.post(OVERPASS_URL, data={"data": query}, timeout=timeout)
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        except Exception as exc:
+            logger.warning("Overpass API attempt %d failed (%s).", attempt + 1, exc)
+            if attempt == 1:
+                logger.warning("Using fallback road set.")
+                return _fallback_roads()
 
     nodes: dict[int, tuple[float, float]] = {}
     ways: list[dict] = []
@@ -127,32 +131,103 @@ def fetch_roads(
     return result if result else _fallback_roads()
 
 def _fallback_roads() -> list[dict]:
-    """Minimal hardcoded road skeleton for Trabzon city centre (offline fallback)."""
+    """Extended hardcoded road skeleton for Trabzon city centre (offline fallback)."""
     return [
         {
             "id": -1,
-            "tags": {"highway": "primary", "name": "Uzun Sokak"},
-            "nodes": [(41.002, 39.718), (41.003, 39.726), (41.004, 39.734)],
+            "tags": {"highway": "primary", "name": "D010 Sahil Yolu Bati"},
+            "nodes": [
+                (41.0050, 39.700), (41.0048, 39.706), (41.0046, 39.712),
+                (41.0044, 39.718), (41.0042, 39.724), (41.0040, 39.730),
+            ],
         },
         {
             "id": -2,
-            "tags": {"highway": "primary", "name": "Maraş Caddesi"},
-            "nodes": [(40.998, 39.722), (41.003, 39.724)],
+            "tags": {"highway": "primary", "name": "D010 Sahil Yolu Dogu"},
+            "nodes": [
+                (41.0040, 39.730), (41.0038, 39.736), (41.0036, 39.742),
+                (41.0034, 39.748), (41.0032, 39.754),
+            ],
         },
         {
             "id": -3,
-            "tags": {"highway": "secondary", "name": "Kahramanmaraş Cad."},
-            "nodes": [(41.000, 39.716), (41.005, 39.718)],
+            "tags": {"highway": "primary", "name": "Uzun Sokak"},
+            "nodes": [
+                (41.0020, 39.716), (41.0022, 39.720), (41.0025, 39.724),
+                (41.0028, 39.728), (41.0030, 39.732), (41.0032, 39.736),
+            ],
         },
         {
             "id": -4,
-            "tags": {"highway": "secondary", "name": "Cumhuriyet Caddesi"},
-            "nodes": [(41.005, 39.723), (41.007, 39.730)],
+            "tags": {"highway": "primary", "name": "Maras Caddesi"},
+            "nodes": [
+                (40.9980, 39.718), (40.9990, 39.720), (41.0000, 39.722),
+                (41.0010, 39.724), (41.0020, 39.726),
+            ],
         },
         {
             "id": -5,
-            "tags": {"highway": "tertiary", "name": "Gazipaşa Bulvarı"},
-            "nodes": [(41.001, 39.710), (41.002, 39.725), (41.003, 39.740)],
+            "tags": {"highway": "secondary", "name": "Kahramanmaras Cad."},
+            "nodes": [
+                (41.0000, 39.712), (41.0010, 39.714), (41.0020, 39.716),
+                (41.0030, 39.718), (41.0040, 39.720),
+            ],
+        },
+        {
+            "id": -6,
+            "tags": {"highway": "secondary", "name": "Cumhuriyet Caddesi"},
+            "nodes": [
+                (41.0050, 39.720), (41.0060, 39.724), (41.0070, 39.728),
+                (41.0080, 39.732), (41.0090, 39.736),
+            ],
+        },
+        {
+            "id": -7,
+            "tags": {"highway": "tertiary", "name": "Gazipasa Bulvari"},
+            "nodes": [
+                (41.0010, 39.708), (41.0015, 39.716), (41.0020, 39.724),
+                (41.0025, 39.732), (41.0030, 39.740),
+            ],
+        },
+        {
+            "id": -8,
+            "tags": {"highway": "secondary", "name": "Ataturk Alani Cevres"},
+            "nodes": [
+                (41.0040, 39.724), (41.0045, 39.726), (41.0050, 39.728),
+                (41.0045, 39.730), (41.0040, 39.728), (41.0040, 39.724),
+            ],
+        },
+        {
+            "id": -9,
+            "tags": {"highway": "tertiary", "name": "Trabzon Liman Yolu"},
+            "nodes": [
+                (41.0060, 39.718), (41.0062, 39.722), (41.0064, 39.726),
+                (41.0066, 39.730), (41.0068, 39.734),
+            ],
+        },
+        {
+            "id": -10,
+            "tags": {"highway": "residential", "name": "Ic Yollar Kuzey"},
+            "nodes": [
+                (41.0080, 39.716), (41.0082, 39.720), (41.0084, 39.724),
+                (41.0086, 39.728),
+            ],
+        },
+        {
+            "id": -11,
+            "tags": {"highway": "residential", "name": "Ic Yollar Guney"},
+            "nodes": [
+                (40.9970, 39.720), (40.9975, 39.724), (40.9980, 39.728),
+                (40.9985, 39.732), (40.9990, 39.736),
+            ],
+        },
+        {
+            "id": -12,
+            "tags": {"highway": "secondary", "name": "Degirmendere Yolu"},
+            "nodes": [
+                (41.0100, 39.708), (41.0090, 39.712), (41.0080, 39.716),
+                (41.0070, 39.720), (41.0060, 39.724),
+            ],
         },
     ]
 
