@@ -298,8 +298,12 @@ st.caption(
     "Harita: OpenStreetMap  |  Veri: OWM · OSM Overpass · EMEP/EEA"
 )
 
-if new_refresh_cycle:
-    st.session_state.last_refresh_count = refresh_count
+# Canlı modda ilk açılışta veya her autorefresh döngüsünde simülasyon çalıştır
+_first_live_run = live_on and st.session_state.result is None
+
+if new_refresh_cycle or _first_live_run:
+    if new_refresh_cycle:
+        st.session_state.last_refresh_count = refresh_count
 
     with st.spinner("🔄 Canlı güncelleme: OWM'den hava verisi alınıyor…"):
         weather_live = _fetch_weather_live()
