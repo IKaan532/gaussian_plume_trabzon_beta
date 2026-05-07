@@ -7,7 +7,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir --upgrade pip wheel
+RUN pip install --no-cache-dir --upgrade pip wheel setuptools
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
