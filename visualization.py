@@ -142,7 +142,6 @@ def plot_mapbox(
     result: ScenarioResult,
     output_path: Optional[str | Path] = None,
     zoom: int = 13,
-    roads: Optional[list] = None,
 ) -> "go.Figure":
     """
     Concentration field as Densitymapbox on OpenStreetMap tiles.
@@ -216,31 +215,33 @@ def plot_mapbox(
             )
         )
 
-    if sc.source_type == "line":
-        if roads:
-            _draw_road_lines(fig, roads)
-        elif result.segments:
-            # Fallback: segment midpoint'leri nokta olarak göster
-            road_colors_map = {
-                "motorway": "#e74c3c", "trunk": "#e67e22", "primary": "#f1c40f",
-                "secondary": "#2ecc71", "tertiary": "#3498db", "residential": "#bdc3c7",
-            }
-            by_class: dict[str, list] = {}
-            for seg in result.segments:
-                cls = seg.get("road_class", "residential")
-                by_class.setdefault(cls, []).append(seg)
-            for cls, segs in by_class.items():
-                fig.add_trace(
-                    go.Scattermapbox(
-                        lat       = [s["lat"] for s in segs],
-                        lon       = [s["lon"] for s in segs],
-                        mode      = "markers",
-                        marker    = dict(size=3, color=road_colors_map.get(cls, "#888")),
-                        name      = f"Yol: {cls}",
-                        hoverinfo = "skip",
-                        opacity   = 0.70,
-                    )
+    if sc.source_type == "line" and result.segments:
+        road_colors_map = {
+            "motorway": "#e74c3c", "trunk": "#e67e22", "primary": "#f1c40f",
+            "secondary": "#2ecc71", "tertiary": "#3498db", "residential": "#bdc3c7",
+        }
+        by_class: dict[str, list] = {}
+        for seg in result.segments:
+            cls = seg.get("road_class", "residential")
+            by_class.setdefault(cls, []).append(seg)
+
+        for cls, segs in by_class.items():
+            lats_line: list = []
+            lons_line: list = []
+            for seg in segs:
+                lats_line += [seg["lat"], seg["lat"], None]
+                lons_line += [seg["lon"], seg["lon"], None]
+            fig.add_trace(
+                go.Scattermapbox(
+                    lat        = lats_line,
+                    lon        = lons_line,
+                    mode       = "lines",
+                    line       = dict(width=2, color=road_colors_map.get(cls, "#888")),
+                    name       = f"Road: {cls}",
+                    hoverinfo  = "skip",
+                    opacity    = 0.75,
                 )
+            )
 
     fig.add_trace(
         go.Scattermapbox(
@@ -502,7 +503,6 @@ def plot_mapbox_combined(
     result_line:  ScenarioResult,
     output_path: Optional[str | Path] = None,
     zoom: int = 13,
-    roads: Optional[list] = None,
 ) -> "go.Figure":
     """
     Hem nokta hem çizgi kaynağı tek haritada gösterir.
@@ -566,26 +566,25 @@ def plot_mapbox_combined(
         )
     )
 
-    if roads:
-        _draw_road_lines(fig, roads)
-    elif result_line.segments:
-        # Fallback: segment midpoint'leri nokta olarak göster
-        road_colors_map = {
-            "motorway": "#e74c3c", "trunk": "#e67e22", "primary": "#f1c40f",
-            "secondary": "#2ecc71", "tertiary": "#3498db", "residential": "#bdc3c7",
-        }
+    road_colors_map = {
+        "motorway": "#e74c3c", "trunk": "#e67e22", "primary": "#f1c40f",
+        "secondary": "#2ecc71", "tertiary": "#3498db", "residential": "#bdc3c7",
+    }
+    if result_line.segments:
         by_class: dict[str, list] = {}
         for seg in result_line.segments:
             cls = seg.get("road_class", "residential")
             by_class.setdefault(cls, []).append(seg)
         for cls, segs in by_class.items():
+            lats_l = [s["lat"] for s in segs]
+            lons_l = [s["lon"] for s in segs]
             fig.add_trace(
                 go.Scattermapbox(
-                    lat       = [s["lat"] for s in segs],
-                    lon       = [s["lon"] for s in segs],
-                    mode      = "markers",
-                    marker    = dict(size=3, color=road_colors_map.get(cls, "#888"), opacity=0.6),
-                    name      = f"Yol: {cls}",
+                    lat  = lats_l,
+                    lon  = lons_l,
+                    mode = "markers",
+                    marker = dict(size=2, color=road_colors_map.get(cls, "#888"), opacity=0.5),
+                    name = f"Yol: {cls}",
                     hoverinfo = "skip",
                 )
             )

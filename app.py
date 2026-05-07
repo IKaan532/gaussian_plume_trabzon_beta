@@ -126,12 +126,16 @@ with st.sidebar:
         else:
             st.info("🟡 Canlı mod aktif — ilk güncelleme bekleniyor…")
 
-        st.caption(f"⏱️ Sonraki güncelleme: **{next_refresh.strftime('%H:%M:%S')}**")
-
         last_dt   = st.session_state.last_update_dt
         elapsed_s = max((now - last_dt).total_seconds(), 0.0) if last_dt else 0.0
-        progress  = min(elapsed_s / 150.0, 1.0)
-        st.progress(progress, text=f"{int(elapsed_s)}s / 150s")
+        remaining_s = max(150.0 - elapsed_s, 0.0)
+        next_refresh = now + datetime.timedelta(seconds=remaining_s)
+
+        st.caption(f"⏱️ Sonraki güncelleme: **{next_refresh.strftime('%H:%M:%S')}**")
+
+        progress = min(elapsed_s / 150.0, 1.0)
+        elapsed_display = min(int(elapsed_s), 150)
+        st.progress(progress, text=f"{elapsed_display}s / 150s")
     else:
         st.caption("⚫ Manuel mod — butona basarak çalıştırın.")
 
@@ -315,7 +319,6 @@ if run_btn:
                 )
                 with st.spinner("Yol segmentleri yükleniyor…"):
                     roads    = _load_raw_roads()
-                    st.session_state["roads_raw"] = roads
                     segments = _build_segs(roads, traffic_multiplier=traffic_mult)
                 result_line = run_scenario(sc_line, grid=grid, segments=segments)
                 st.session_state.result_line = result_line
@@ -372,9 +375,67 @@ if result is not None:
         delta="canlı" if live_on else "manuel",
     )
 
-    tab_osm, tab_folium, tab_metrics, tab_export = st.tabs([
+    # ── Kirlilik Emisyon Göstergesi ──────────────────────────────────────────
+    st.divider()
+    st.subheader("🏭 Anlık Emisyon Oranları")
+
+    if is_point or is_combined:
+        # Nokta kaynak: kullanıcının girdiği Q değerini baz al
+        # Endüstriyel baca için tipik kirletici oranları (NOx=1 birim esas)
+        q = float(emission_rate)
+        point_em = {
+            "NOx": q,
+            "CO2": q * 320.0,
+            "SOx": q * 0.15,
+            "VOC": q * 0.08,
+        }
+        if is_point:
+            em_data = point_em
+            em_label = "Nokta Kaynak (Endüstriyel Baca)"
+        else:
+            em_data = point_em  # combined: nokta göster, çizgi ayrı
+
+    if is_line or is_combined:
+        from sources import compute_road_emissions
+        roads_for_em = _load_raw_roads()
+        line_em = compute_road_emissions(roads_for_em, traffic_multiplier=traffic_mult)
+        if is_line:
+            em_data  = line_em
+            em_label = "Çizgi Kaynak (Yol Ağı)"
+
+    if is_combined:
+        # İkisini topla
+        em_data  = {k: point_em[k] + line_em[k] for k in point_em}
+        em_label = "Toplam (Nokta + Yol Ağı)"
+
+    ecol1, ecol2, ecol3, ecol4 = st.columns(4)
+    ecol1.metric("NOx",  f"{em_data['NOx']:.3f} g/s",  help="Azot oksitler — EMEP/EEA Tier 2")
+    ecol2.metric("CO₂",  f"{em_data['CO2']:.2f} g/s",  help="Karbondioksit")
+    ecol3.metric("SOx",  f"{em_data['SOx']:.4f} g/s",  help="Kükürt oksitler")
+    ecol4.metric("VOC",  f"{em_data['VOC']:.4f} g/s",  help="Uçucu organik bileşikler")
+
+    import plotly.graph_objects as _go
+
+    _bar = _go.Figure(_go.Bar(
+        x    = ["NOx", "CO₂", "SOx", "VOC"],
+        y    = [em_data["NOx"], em_data["CO2"], em_data["SOx"], em_data["VOC"]],
+        marker_color = ["#e74c3c", "#95a5a6", "#f39c12", "#2ecc71"],
+        text = [f"{v:.3f}" for v in [em_data["NOx"], em_data["CO2"], em_data["SOx"], em_data["VOC"]]],
+        textposition = "outside",
+    ))
+    _bar.update_layout(
+        title  = dict(text=f"Emisyon Dağılımı — {em_label}", x=0.5),
+        yaxis  = dict(title="g/s"),
+        height = 320,
+        margin = dict(l=40, r=20, t=60, b=40),
+    )
+    st.plotly_chart(_bar, use_container_width=True)
+    st.caption("Kaynak: EMEP/EEA Hava Kirliliği Emisyon Envanter Rehberi — Tier 2 faktörleri")
+    st.divider()
+    # ─────────────────────────────────────────────────────────────────────────
+
+    tab_osm, tab_metrics, tab_export = st.tabs([
         "🌍 OSM Haritası",
-        "🗺️ Folium Haritası",
         "📊 Doğrulama",
         "📥 Dışa Aktar",
     ])
@@ -385,16 +446,14 @@ if result is not None:
                 st.markdown(
                     "**Birleşik görünüm** — Mavi: Nokta kaynak · Turuncu/Kırmızı: Çizgi kaynak (yol ağı)"
                 )
-                _roads_for_plot = st.session_state.get("roads_raw")
-                fig_mb = plot_mapbox_combined(result_point, result_line, zoom=13, roads=_roads_for_plot)
+                fig_mb = plot_mapbox_combined(result_point, result_line, zoom=13)
             else:
                 st.markdown(
                     f"**{sc.description}**  |  "
                     f"Rüzgar: {sc.wind_speed} m/s, {sc.wind_direction:.0f}° yönünden  |  "
                     f"Baca/Salım yüksekliği: {sc.stack_height:.0f} m"
                 )
-                _roads_for_plot = st.session_state.get("roads_raw") if not is_point else None
-                fig_mb = plot_mapbox(result, zoom=13, roads=_roads_for_plot)
+                fig_mb = plot_mapbox(result, zoom=13)
             st.plotly_chart(fig_mb, use_container_width=True)
             st.caption(
                 "© OpenStreetMap katkıcıları  |  "
@@ -407,25 +466,6 @@ if result is not None:
             st.pyplot(fig_mpl)
             import matplotlib.pyplot as _plt
             _plt.close(fig_mpl)
-
-    with tab_folium:
-        if not HAS_FOLIUM:
-            st.warning("folium yüklü değil.  `pip install folium` komutunu çalıştırın.")
-        else:
-            st.markdown(
-                "OpenStreetMap üzerinde etkileşimli ısı haritası.  "
-                "Sağ üst köşeden uydu katmanına geçiş yapabilirsiniz."
-            )
-            try:
-                m        = plot_folium(result)
-                map_html = m._repr_html_()
-                st_html.html(map_html, height=620, scrolling=False)
-                st.caption(
-                    "Tam ekran için sol üst köşedeki ikonu · "
-                    "Katman geçişi için sağ üst köşedeki kontrolü kullanın."
-                )
-            except Exception as exc:
-                st.error(f"Folium harita hatası: {exc}")
 
     with tab_metrics:
         if val_results:
@@ -473,19 +513,7 @@ if result is not None:
             )
 
         with dcol3:
-            if HAS_FOLIUM:
-                try:
-                    m_exp      = plot_folium(result)
-                    html_bytes = m_exp._repr_html_().encode("utf-8")
-                    st.download_button(
-                        "⬇️ Etkileşimli Harita HTML",
-                        data      = html_bytes,
-                        file_name = f"{sc.name}_map.html",
-                        mime      = "text/html",
-                        use_container_width=True,
-                    )
-                except Exception:
-                    st.caption("Folium dışa aktarımı mevcut değil.")
+            pass
 
         st.divider()
         st.markdown("**Konsantrasyon ızgarası — istatistiksel özet**")

@@ -37,6 +37,34 @@ EMEP_EEA_NOX_G_PER_KM = {
     "residential": 0.70,
 }
 
+# EMEP/EEA Tier 2 — karışık filo ortalaması (g/araç-km)
+EMEP_EEA_CO2_G_PER_KM = {
+    "motorway":    180.0,
+    "trunk":       175.0,
+    "primary":     165.0,
+    "secondary":   160.0,
+    "tertiary":    155.0,
+    "residential": 150.0,
+}
+
+EMEP_EEA_SOX_G_PER_KM = {
+    "motorway":    0.024,
+    "trunk":       0.022,
+    "primary":     0.020,
+    "secondary":   0.018,
+    "tertiary":    0.016,
+    "residential": 0.014,
+}
+
+EMEP_EEA_VOC_G_PER_KM = {
+    "motorway":    0.06,
+    "trunk":       0.07,
+    "primary":     0.08,
+    "secondary":   0.09,
+    "tertiary":    0.10,
+    "residential": 0.12,
+}
+
 DEFAULT_TRAFFIC_FLOW_VEH_PER_HOUR = {
     "motorway":    2000,
     "trunk":       1500,
@@ -276,6 +304,43 @@ def build_segments(
 
     logger.info("Built %d road segments (step=%.0f m).", len(segments), step_m)
     return segments
+
+def compute_road_emissions(
+    roads: list[dict],
+    traffic_multiplier: float = 1.0,
+) -> dict[str, float]:
+    """
+    Tüm yol ağı için toplam emisyon miktarlarını hesaplar (g/s).
+
+    Döndürür: {"NOx": ..., "CO2": ..., "SOx": ..., "VOC": ...}
+    """
+    totals = {"NOx": 0.0, "CO2": 0.0, "SOx": 0.0, "VOC": 0.0}
+
+    for road in roads:
+        hw = road["tags"].get("highway", "residential")
+        for key in EMEP_EEA_NOX_G_PER_KM:
+            if hw.startswith(key):
+                hw = key
+                break
+        else:
+            hw = "residential"
+
+        flow = DEFAULT_TRAFFIC_FLOW_VEH_PER_HOUR[hw] * traffic_multiplier
+        nodes = road["nodes"]
+        road_len_m = sum(
+            haversine_m(nodes[i][0], nodes[i][1], nodes[i+1][0], nodes[i+1][1])
+            for i in range(len(nodes) - 1)
+        )
+        road_len_km = road_len_m / 1000.0
+
+        # g/s = (g/araç-km) * (araç/saat) * (km) / 3600
+        totals["NOx"] += EMEP_EEA_NOX_G_PER_KM[hw] * flow * road_len_km / 3600.0
+        totals["CO2"] += EMEP_EEA_CO2_G_PER_KM[hw] * flow * road_len_km / 3600.0
+        totals["SOx"] += EMEP_EEA_SOX_G_PER_KM[hw] * flow * road_len_km / 3600.0
+        totals["VOC"] += EMEP_EEA_VOC_G_PER_KM[hw] * flow * road_len_km / 3600.0
+
+    return totals
+
 
 def load_trabzon_segments(
     bbox: tuple[float, float, float, float] = TRABZON_BBOX,
