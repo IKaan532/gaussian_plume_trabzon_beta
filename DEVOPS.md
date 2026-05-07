@@ -323,13 +323,15 @@ jobs:
           docker build -t ${REGISTRY}/${APP_NAME}:${{ gitea.sha }} .
           docker tag ${REGISTRY}/${APP_NAME}:${{ gitea.sha }} ${REGISTRY}/${APP_NAME}:latest
 
-      - name: Trivy güvenlik taraması
+      - name: Trivy — Zafiyet & Secret & Konfigürasyon Taraması
         run: |
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
+            -v /tmp/trivy-cache:/root/.cache/trivy \
             aquasec/trivy:latest image \
             --exit-code 0 \
-            --severity HIGH,CRITICAL \
+            --scanners vuln,secret,misconfig \
+            --severity MEDIUM,HIGH,CRITICAL \
             --format table \
             ${REGISTRY}/${APP_NAME}:${{ gitea.sha }}
 
@@ -370,13 +372,19 @@ Gitea Actions tetiklenir
     │
     ├─► Kodu çek (host.docker.internal üzerinden)
     ├─► Docker image build
-    ├─► Trivy HIGH/CRITICAL tarama (exit-code 0 → hata olsa bile devam)
+    ├─► Trivy tarama (vuln + secret + misconfig | MEDIUM/HIGH/CRITICAL | exit-code 0)
     ├─► localhost:5000 registry'ye push
     └─► kubectl rollout restart → Kubernetes yeni image'ı çeker
 ```
 
 > **Trivy exit-code 0:** Pipeline güvenlik açıklarında durmuyor, sadece rapor üretiyor.
 > Üretim ortamında `--exit-code 1` yaparak CRITICAL bulgu varsa pipeline'ı durdurabilirsiniz.
+>
+> **Tarama kapsamı:**
+> - `vuln` → OS paketleri + Python/pip framework CVE'leri
+> - `secret` → Kod içindeki API key, token, şifre tespiti
+> - `misconfig` → Dockerfile'da root user, latest tag, `--privileged` gibi yanlış konfigürasyonlar
+> - Severity: `MEDIUM` ve üzeri raporlanır
 
 ---
 
