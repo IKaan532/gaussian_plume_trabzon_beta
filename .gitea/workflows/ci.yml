@@ -1,4 +1,4 @@
-name: CI — Build · Trivy · Push · Deploy
+name: CI/CD — Build · Trivy · Push · Deploy
 
 on:
   push:
