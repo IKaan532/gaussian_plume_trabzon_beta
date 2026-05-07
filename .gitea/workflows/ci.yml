@@ -11,8 +11,7 @@ jobs:
     steps:
       - name: Kodu çek
         run: |
-          git config --global url."http://gitea-http.gitea.svc.cluster.local:3000/".insteadOf "http://localhost:30880/"
-          git clone http://gitea-http.gitea.svc.cluster.local:3000/admin/gaussian-plume.git .
+          git clone http://admin:Admin1234!@host.docker.internal:30880/admin/gaussian-plume.git .
           git checkout ${{ gitea.sha }}
 
       - name: Docker image build
