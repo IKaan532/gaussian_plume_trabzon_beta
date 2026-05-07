@@ -1,0 +1,43 @@
+name: CI — Build · Trivy · Push · Deploy
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodu çek
+        uses: actions/checkout@v3
+
+      - name: Docker image build
+        run: |
+          docker build -t localhost:5000/gaussian-plume:${{ gitea.sha }} .
+          docker tag localhost:5000/gaussian-plume:${{ gitea.sha }} localhost:5000/gaussian-plume:latest
+
+      - name: Trivy güvenlik taraması
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --exit-code 0 \
+            --severity HIGH,CRITICAL \
+            --format table \
+            localhost:5000/gaussian-plume:${{ gitea.sha }}
+
+      - name: Registry push
+        run: |
+          docker push localhost:5000/gaussian-plume:${{ gitea.sha }}
+          docker push localhost:5000/gaussian-plume:latest
+
+      - name: Kubernetes deploy
+        run: |
+          curl -sLO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          ./kubectl rollout restart deployment/gaussian-plume \
+            --namespace=gaussian-plume \
+            --server=https://kubernetes.default.svc.cluster.local \
+            --token=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token) \
+            --insecure-skip-tls-verify
