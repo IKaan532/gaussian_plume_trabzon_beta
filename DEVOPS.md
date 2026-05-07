@@ -354,6 +354,61 @@ jobs:
             --insecure-skip-tls-verify
 ```
 
+### Gerçek Dosya İçeriği (.gitea/workflows/ci.yml)
+
+```yaml
+name: CI/CD — Build · Trivy · Push · Deploy
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodu çek
+        run: |
+          git clone http://admin:Admin1234!@host.docker.internal:30880/admin/gaussian-plume.git .
+          git checkout ${{ gitea.sha }}
+
+      - name: Docker image build
+        run: |
+          docker build -t localhost:5000/gaussian-plume:${{ gitea.sha }} .
+          docker tag localhost:5000/gaussian-plume:${{ gitea.sha }} localhost:5000/gaussian-plume:latest
+
+      - name: Trivy — Zafiyet & Secret & Konfigürasyon Taraması
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v /tmp/trivy-cache:/root/.cache/trivy \
+            aquasec/trivy:latest image \
+            --exit-code 0 \
+            --scanners vuln,secret,misconfig \
+            --severity MEDIUM,HIGH,CRITICAL \
+            --format table \
+            localhost:5000/gaussian-plume:${{ gitea.sha }}
+
+      - name: Registry push
+        run: |
+          docker push localhost:5000/gaussian-plume:${{ gitea.sha }}
+          docker push localhost:5000/gaussian-plume:latest
+
+      - name: Kubernetes deploy
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          curl -sLO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          mkdir -p ~/.kube
+          echo "$KUBE_CONFIG" | base64 -d > ~/.kube/config
+          sed -i 's/kubernetes.docker.internal/host.docker.internal/g' ~/.kube/config
+          ./kubectl rollout restart deployment/gaussian-plume \
+            --namespace=gaussian-plume \
+            --insecure-skip-tls-verify
+```
+
 ### KUBE_CONFIG Secret Oluştur
 
 ```bash

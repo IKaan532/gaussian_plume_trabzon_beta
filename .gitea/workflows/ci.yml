@@ -19,13 +19,15 @@ jobs:
           docker build -t localhost:5000/gaussian-plume:${{ gitea.sha }} .
           docker tag localhost:5000/gaussian-plume:${{ gitea.sha }} localhost:5000/gaussian-plume:latest
 
-      - name: Trivy güvenlik taraması
+      - name: Trivy — Zafiyet & Secret & Konfigürasyon Taraması
         run: |
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
+            -v /tmp/trivy-cache:/root/.cache/trivy \
             aquasec/trivy:latest image \
             --exit-code 0 \
-            --severity HIGH,CRITICAL \
+            --scanners vuln,secret,misconfig \
+            --severity MEDIUM,HIGH,CRITICAL \
             --format table \
             localhost:5000/gaussian-plume:${{ gitea.sha }}
 
