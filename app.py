@@ -152,11 +152,23 @@ with st.sidebar:
 
             function pad(n) {{ return n < 10 ? '0' + n : n; }}
 
+            var timer = null;
+
             function tick() {{
-                if (elapsed < total) {{ elapsed++; remaining = Math.max(remaining - 1, 0); }}
-                var pct = Math.min((elapsed / total) * 100, 100);
+                elapsed++;
+                remaining = Math.max(remaining - 1, 0);
+
+                if (elapsed >= total) {{
+                    document.getElementById('prog-bar').style.width = '100%';
+                    document.getElementById('elapsed').innerText = total;
+                    document.getElementById('next-time').innerText = 'güncelleniyor...';
+                    clearInterval(timer);
+                    return;
+                }}
+
+                var pct = (elapsed / total) * 100;
                 document.getElementById('prog-bar').style.width = pct + '%';
-                document.getElementById('elapsed').innerText = Math.min(elapsed, total);
+                document.getElementById('elapsed').innerText = elapsed;
 
                 var now = new Date();
                 now.setSeconds(now.getSeconds() + remaining);
@@ -165,7 +177,7 @@ with st.sidebar:
             }}
 
             tick();
-            setInterval(tick, 1000);
+            timer = setInterval(tick, 1000);
         </script>
         """, height=60)
     else:
