@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gaussian-plume
+  namespace: gaussian-plume
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gaussian-plume
+  template:
+    metadata:
+      labels:
+        app: gaussian-plume
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - gaussian-plume
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: gaussian-plume
+          image: localhost:5000/gaussian-plume:latest
+          ports:
+            - containerPort: 8501
+          env:
+            - name: OWM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: owm-api-key
+                  key: OWM_API_KEY
