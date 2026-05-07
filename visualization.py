@@ -123,7 +123,12 @@ def plot_mapbox(
     lon_flat = grid.lon_grid.ravel()
     cq_flat  = cq.ravel()
 
-    mask     = cq_flat > 0
+    nonzero   = cq_flat[cq_flat > 0]
+    threshold = (
+        max(float(np.quantile(nonzero, 0.65)), float(nonzero.max()) * 1e-3)
+        if nonzero.size > 0 else 1e-30
+    )
+    mask     = cq_flat >= threshold
     cq_log   = np.where(mask, np.log10(np.where(mask, cq_flat, 1e-30)), np.nan)
     cq_log_v = cq_log[mask]
 
@@ -477,10 +482,15 @@ def plot_mapbox_combined(
     ]:
         grid     = result.grid
         cq       = result.concentration
-        lat_flat = grid.lat_grid.ravel()
-        lon_flat = grid.lon_grid.ravel()
-        cq_flat  = cq.ravel()
-        mask     = cq_flat > 0
+        lat_flat  = grid.lat_grid.ravel()
+        lon_flat  = grid.lon_grid.ravel()
+        cq_flat   = cq.ravel()
+        nonzero   = cq_flat[cq_flat > 0]
+        threshold = (
+            max(float(np.quantile(nonzero, 0.65)), float(nonzero.max()) * 1e-3)
+            if nonzero.size > 0 else 1e-30
+        )
+        mask     = cq_flat >= threshold
         cq_log   = np.where(mask, np.log10(np.where(mask, cq_flat, 1e-30)), np.nan)
         cq_log_v = cq_log[mask]
 

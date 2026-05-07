@@ -56,6 +56,7 @@ _DEFAULTS = {
     "auto_refresh":          False,
     "last_refresh_count":    -1,
     "last_update_time":      None,
+    "last_update_dt":        None,
     "live_wind_speed":       3.0,
     "live_wind_dir":         270.0,
     "live_stability":        "D",
@@ -127,11 +128,9 @@ with st.sidebar:
 
         st.caption(f"⏱️ Sonraki güncelleme: **{next_refresh.strftime('%H:%M:%S')}**")
 
-        elapsed_s = (now - (
-            datetime.datetime.strptime(st.session_state.last_update_time, "%H:%M:%S")
-            if st.session_state.last_update_time else now
-        )).total_seconds()
-        progress = min(elapsed_s / 150.0, 1.0)
+        last_dt   = st.session_state.last_update_dt
+        elapsed_s = max((now - last_dt).total_seconds(), 0.0) if last_dt else 0.0
+        progress  = min(elapsed_s / 150.0, 1.0)
         st.progress(progress, text=f"{int(elapsed_s)}s / 150s")
     else:
         st.caption("⚫ Manuel mod — butona basarak çalıştırın.")
@@ -335,7 +334,9 @@ if run_btn:
         val_results = run_validation_suite(grid=grid)
         st.session_state.val_results = val_results
 
-    st.session_state.last_update_time = datetime.datetime.now().strftime("%H:%M:%S")
+    _now = datetime.datetime.now()
+    st.session_state.last_update_time = _now.strftime("%H:%M:%S")
+    st.session_state.last_update_dt   = _now
 
     if not live_on:
         st.success("✅ Simülasyon tamamlandı!")
