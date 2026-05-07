@@ -456,6 +456,144 @@ def create_animation(
     logger.info("GIF saved -> %s", out)
     return out
 
+def plot_mapbox_combined(
+    result_point: ScenarioResult,
+    result_line:  ScenarioResult,
+    output_path: Optional[str | Path] = None,
+    zoom: int = 13,
+) -> "go.Figure":
+    """
+    Hem nokta hem çizgi kaynağı tek haritada gösterir.
+    Her kaynak kendi Densitymapbox katmanına sahiptir.
+    """
+    if not HAS_PLOTLY:
+        raise ImportError("plotly not installed.")
+
+    fig = go.Figure()
+
+    for result, label, colorscale, opacity in [
+        (result_point, "Nokta Kaynak", "Blues",  0.60),
+        (result_line,  "Çizgi Kaynak", "YlOrRd", 0.60),
+    ]:
+        grid     = result.grid
+        cq       = result.concentration
+        lat_flat = grid.lat_grid.ravel()
+        lon_flat = grid.lon_grid.ravel()
+        cq_flat  = cq.ravel()
+        mask     = cq_flat > 0
+        cq_log   = np.where(mask, np.log10(np.where(mask, cq_flat, 1e-30)), np.nan)
+        cq_log_v = cq_log[mask]
+
+        fig.add_trace(
+            go.Densitymapbox(
+                lat        = lat_flat[mask],
+                lon        = lon_flat[mask],
+                z          = cq_log_v,
+                radius     = 14,
+                colorscale = colorscale,
+                opacity    = opacity,
+                zmin       = float(np.nanmin(cq_log_v)),
+                zmax       = float(np.nanmax(cq_log_v)),
+                name       = label,
+                hovertemplate = (
+                    f"<b>{label}</b><br>"
+                    "Lat: %{lat:.5f}<br>Lon: %{lon:.5f}<br>"
+                    "log₁₀(C/Q): %{z:.2f}<extra></extra>"
+                ),
+            )
+        )
+
+    sc_p = result_point.scenario
+    sc_l = result_line.scenario
+
+    fig.add_trace(
+        go.Scattermapbox(
+            lat  = [sc_p.source_lat],
+            lon  = [sc_p.source_lon],
+            mode = "markers+text",
+            marker = dict(size=14, color="royalblue"),
+            text = [f"Baca H={sc_p.stack_height:.0f}m"],
+            textfont = dict(color="white", size=11),
+            textposition = "top right",
+            name = "Nokta Kaynak (baca)",
+        )
+    )
+
+    road_colors_map = {
+        "motorway": "#e74c3c", "trunk": "#e67e22", "primary": "#f1c40f",
+        "secondary": "#2ecc71", "tertiary": "#3498db", "residential": "#bdc3c7",
+    }
+    if result_line.segments:
+        by_class: dict[str, list] = {}
+        for seg in result_line.segments:
+            cls = seg.get("road_class", "residential")
+            by_class.setdefault(cls, []).append(seg)
+        for cls, segs in by_class.items():
+            lats_l = [s["lat"] for s in segs]
+            lons_l = [s["lon"] for s in segs]
+            fig.add_trace(
+                go.Scattermapbox(
+                    lat  = lats_l,
+                    lon  = lons_l,
+                    mode = "markers",
+                    marker = dict(size=2, color=road_colors_map.get(cls, "#888"), opacity=0.5),
+                    name = f"Yol: {cls}",
+                    hoverinfo = "skip",
+                )
+            )
+
+    fig.add_trace(
+        go.Scattermapbox(
+            lat  = [result_point.peak_lat],
+            lon  = [result_point.peak_lon],
+            mode = "markers+text",
+            marker = dict(size=14, color="blue", symbol="star"),
+            text = [f"Tepe(P)={result_point.peak_cq:.2e}"],
+            textfont = dict(color="white", size=9),
+            textposition = "bottom right",
+            name = "Tepe — Nokta",
+        )
+    )
+    fig.add_trace(
+        go.Scattermapbox(
+            lat  = [result_line.peak_lat],
+            lon  = [result_line.peak_lon],
+            mode = "markers+text",
+            marker = dict(size=14, color="crimson", symbol="star"),
+            text = [f"Tepe(Ç)={result_line.peak_cq:.2e}"],
+            textfont = dict(color="white", size=9),
+            textposition = "bottom right",
+            name = "Tepe — Çizgi",
+        )
+    )
+
+    fig.update_layout(
+        mapbox = dict(
+            style  = "open-street-map",
+            center = dict(lat=TRABZON_LAT, lon=TRABZON_LON),
+            zoom   = zoom,
+        ),
+        title = dict(
+            text = (
+                "<b>Gaussian Plume — Nokta + Çizgi Kaynak — Trabzon</b><br>"
+                f"<sup>Nokta: Sınıf {sc_p.stability_class} | {sc_p.wind_speed} m/s {sc_p.wind_direction:.0f}°  ·  "
+                f"Çizgi: Sınıf {sc_l.stability_class} | {sc_l.wind_speed} m/s {sc_l.wind_direction:.0f}°</sup>"
+            ),
+            x = 0.5, xanchor = "center", font = dict(size=14),
+        ),
+        legend = dict(
+            bgcolor="rgba(255,255,255,0.88)", bordercolor="grey",
+            borderwidth=1, x=0.01, y=0.99, xanchor="left", yanchor="top",
+        ),
+        margin = dict(l=0, r=0, t=80, b=0),
+        height = 660,
+    )
+
+    if output_path:
+        fig.write_html(str(output_path))
+    return fig
+
+
 def concentration_to_csv(result: ScenarioResult) -> pd.DataFrame:
     """Flatten concentration grid to tidy DataFrame."""
     grid = result.grid

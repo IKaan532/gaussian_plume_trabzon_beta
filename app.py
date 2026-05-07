@@ -30,7 +30,7 @@ from model import (
 from scenarios import Scenario, ScenarioResult, run_scenario
 from validation import run_validation_suite, validation_summary
 from visualization import (
-    plot_heatmap, plot_mapbox, plot_folium,
+    plot_heatmap, plot_mapbox, plot_mapbox_combined, plot_folium,
     figure_to_png_bytes, concentration_to_csv,
     HAS_FOLIUM,
 )
@@ -49,6 +49,8 @@ st.set_page_config(
 
 _DEFAULTS = {
     "result":                None,
+    "result_point":          None,
+    "result_line":           None,
     "val_results":           None,
     "weather":               None,
     "auto_refresh":          False,
@@ -138,13 +140,19 @@ with st.sidebar:
 
     source_type = st.selectbox(
         "Emisyon kaynağı",
-        ["Nokta kaynak (endüstriyel baca)", "Çizgi kaynak (yol ağı)"],
+        [
+            "Nokta kaynak (endüstriyel baca)",
+            "Çizgi kaynak (yol ağı)",
+            "Her ikisi (Nokta + Çizgi)",
+        ],
     )
-    is_point = source_type.startswith("Nokta")
+    is_point    = source_type.startswith("Nokta")
+    is_line     = source_type.startswith("Çizgi")
+    is_combined = source_type.startswith("Her ikisi")
 
     st.divider()
 
-    if is_point:
+    if is_point or is_combined:
         st.subheader("Nokta Kaynak Parametreleri")
         src_lat = st.number_input(
             "Kaynak enlemi (°N)", value=41.0020, format="%.5f", step=0.001
@@ -157,17 +165,20 @@ with st.sidebar:
             "Emisyon debisi Q (g/s)", value=1.0, min_value=0.01, step=0.1
         )
         traffic_mult  = 1.0
-    else:
+
+    if is_line or is_combined:
         st.subheader("Çizgi Kaynak — Yol Ağı")
         st.info(
             "Yol geometrileri ilk çalıştırmada OpenStreetMap'ten otomatik alınır.",
             icon="🛣️",
         )
-        stack_h       = st.slider("Salım yüksekliği (m)", 0, 10, 1)
+        line_stack_h  = st.slider("Salım yüksekliği (m)", 0, 10, 1)
         traffic_mult  = st.slider("Trafik çarpanı", 0.1, 3.0, 1.0, step=0.1)
-        src_lat       = TRABZON_LAT
-        src_lon       = TRABZON_LON
-        emission_rate = 1.0
+        if is_line:
+            src_lat       = TRABZON_LAT
+            src_lon       = TRABZON_LON
+            stack_h       = line_stack_h
+            emission_rate = 1.0
 
     st.divider()
 
@@ -267,45 +278,55 @@ if new_refresh_cycle:
     run_btn = True
 
 if run_btn:
-    if is_point:
-        sc = Scenario(
-            name            = "custom_point",
-            source_type     = "point",
-            stability_class = stability_class,
-            wind_speed      = wind_speed,
-            wind_direction  = float(wind_dir),
-            stack_height    = float(stack_h),
-            emission_rate   = float(emission_rate),
-            description     = f"Nokta kaynak — Sınıf {stability_class}",
-            source_lat      = float(src_lat),
-            source_lon      = float(src_lon),
-        )
-        segments = None
-    else:
-        sc = Scenario(
-            name            = "custom_line",
-            source_type     = "line",
-            stability_class = stability_class,
-            wind_speed      = wind_speed,
-            wind_direction  = float(wind_dir),
-            stack_height    = float(stack_h),
-            emission_rate   = 1.0,
-            description     = f"Yol ağı çizgi kaynağı — Sınıf {stability_class}",
-            source_lat      = TRABZON_LAT,
-            source_lon      = TRABZON_LON,
-        )
-        with st.spinner("Yol segmentleri yükleniyor…"):
-            from sources import build_segments as _build_segs
-            roads    = _load_raw_roads()
-            segments = _build_segs(roads, traffic_multiplier=traffic_mult)
+    from sources import build_segments as _build_segs
 
     grid = SimulationGrid(extent_m=5000.0, resolution_m=100.0)
-
     spin_msg = "🔄 Canlı simülasyon yenileniyor…" if live_on else "Simülasyon hesaplanıyor…"
+
     with st.spinner(spin_msg):
         try:
-            result = run_scenario(sc, grid=grid, segments=segments)
-            st.session_state.result = result
+            if is_point or is_combined:
+                sc_point = Scenario(
+                    name            = "custom_point",
+                    source_type     = "point",
+                    stability_class = stability_class,
+                    wind_speed      = wind_speed,
+                    wind_direction  = float(wind_dir),
+                    stack_height    = float(stack_h),
+                    emission_rate   = float(emission_rate),
+                    description     = f"Nokta kaynak — Sınıf {stability_class}",
+                    source_lat      = float(src_lat),
+                    source_lon      = float(src_lon),
+                )
+                result_point = run_scenario(sc_point, grid=grid, segments=None)
+                st.session_state.result_point = result_point
+
+            if is_line or is_combined:
+                sc_line = Scenario(
+                    name            = "custom_line",
+                    source_type     = "line",
+                    stability_class = stability_class,
+                    wind_speed      = wind_speed,
+                    wind_direction  = float(wind_dir),
+                    stack_height    = float(line_stack_h if (is_line or is_combined) else stack_h),
+                    emission_rate   = 1.0,
+                    description     = f"Yol ağı çizgi kaynağı — Sınıf {stability_class}",
+                    source_lat      = TRABZON_LAT,
+                    source_lon      = TRABZON_LON,
+                )
+                with st.spinner("Yol segmentleri yükleniyor…"):
+                    roads    = _load_raw_roads()
+                    segments = _build_segs(roads, traffic_multiplier=traffic_mult)
+                result_line = run_scenario(sc_line, grid=grid, segments=segments)
+                st.session_state.result_line = result_line
+
+            if is_combined:
+                st.session_state.result = result_point
+            elif is_point:
+                st.session_state.result = result_point
+            else:
+                st.session_state.result = result_line
+
         except Exception:
             st.error(f"Simülasyon başarısız:\n```\n{traceback.format_exc()}\n```")
             st.stop()
@@ -319,8 +340,10 @@ if run_btn:
     if not live_on:
         st.success("✅ Simülasyon tamamlandı!")
 
-result: Optional[ScenarioResult] = st.session_state.result
-val_results: Optional[list]      = st.session_state.val_results
+result:       Optional[ScenarioResult] = st.session_state.result
+result_point: Optional[ScenarioResult] = st.session_state.result_point
+result_line:  Optional[ScenarioResult] = st.session_state.result_line
+val_results:  Optional[list]           = st.session_state.val_results
 
 if result is not None:
     sc = result.scenario
@@ -355,13 +378,19 @@ if result is not None:
     ])
 
     with tab_osm:
-        st.markdown(
-            f"**{sc.description}**  |  "
-            f"Rüzgar: {sc.wind_speed} m/s, {sc.wind_direction:.0f}° yönünden  |  "
-            f"Baca/Salım yüksekliği: {sc.stack_height:.0f} m"
-        )
         try:
-            fig_mb = plot_mapbox(result, zoom=13)
+            if is_combined and result_point and result_line:
+                st.markdown(
+                    "**Birleşik görünüm** — Mavi: Nokta kaynak · Turuncu/Kırmızı: Çizgi kaynak (yol ağı)"
+                )
+                fig_mb = plot_mapbox_combined(result_point, result_line, zoom=13)
+            else:
+                st.markdown(
+                    f"**{sc.description}**  |  "
+                    f"Rüzgar: {sc.wind_speed} m/s, {sc.wind_direction:.0f}° yönünden  |  "
+                    f"Baca/Salım yüksekliği: {sc.stack_height:.0f} m"
+                )
+                fig_mb = plot_mapbox(result, zoom=13)
             st.plotly_chart(fig_mb, use_container_width=True)
             st.caption(
                 "© OpenStreetMap katkıcıları  |  "
