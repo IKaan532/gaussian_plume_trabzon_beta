@@ -39,6 +39,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 REFRESH_INTERVAL_MS = 150_000
+_TZ_TR = datetime.timezone(datetime.timedelta(hours=3))  # UTC+3 Türkiye
+
+def _now_tr() -> datetime.datetime:
+    """UTC+3 Türkiye saatini döndürür (pod UTC'de çalışsa da doğru saat gösterir)."""
+    return datetime.datetime.now(_TZ_TR).replace(tzinfo=None)
 
 st.set_page_config(
     page_title  = "Gaussian Plume — Trabzon Canlı",
@@ -115,7 +120,7 @@ with st.sidebar:
     st.session_state.auto_refresh = live_on
 
     if live_on:
-        now          = datetime.datetime.now()
+        now          = _now_tr()
         next_refresh = now + datetime.timedelta(seconds=150)
 
         if st.session_state.last_update_time:
@@ -126,16 +131,43 @@ with st.sidebar:
         else:
             st.info("🟡 Canlı mod aktif — ilk güncelleme bekleniyor…")
 
-        last_dt   = st.session_state.last_update_dt
-        elapsed_s = max((now - last_dt).total_seconds(), 0.0) if last_dt else 0.0
+        last_dt     = st.session_state.last_update_dt
+        elapsed_s   = max((now - last_dt).total_seconds(), 0.0) if last_dt else 0.0
         remaining_s = max(150.0 - elapsed_s, 0.0)
-        next_refresh = now + datetime.timedelta(seconds=remaining_s)
 
-        st.caption(f"⏱️ Sonraki güncelleme: **{next_refresh.strftime('%H:%M:%S')}**")
+        st_html.html(f"""
+        <div style="font-family:sans-serif; font-size:13px; color:#555; margin-bottom:4px;">
+            ⏱️ Sonraki güncelleme: <span id="next-time" style="font-weight:bold;"></span>
+        </div>
+        <div style="background:#eee; border-radius:6px; height:8px; width:100%; margin-bottom:4px;">
+            <div id="prog-bar" style="background:#e74c3c; height:8px; border-radius:6px; width:0%;"></div>
+        </div>
+        <div style="font-size:12px; color:#888;">
+            <span id="elapsed">0</span>s / 150s
+        </div>
+        <script>
+            var remaining = {int(remaining_s)};
+            var elapsed   = {int(elapsed_s)};
+            var total     = 150;
 
-        progress = min(elapsed_s / 150.0, 1.0)
-        elapsed_display = min(int(elapsed_s), 150)
-        st.progress(progress, text=f"{elapsed_display}s / 150s")
+            function pad(n) {{ return n < 10 ? '0' + n : n; }}
+
+            function tick() {{
+                if (elapsed < total) {{ elapsed++; remaining = Math.max(remaining - 1, 0); }}
+                var pct = Math.min((elapsed / total) * 100, 100);
+                document.getElementById('prog-bar').style.width = pct + '%';
+                document.getElementById('elapsed').innerText = Math.min(elapsed, total);
+
+                var now = new Date();
+                now.setSeconds(now.getSeconds() + remaining);
+                document.getElementById('next-time').innerText =
+                    pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+            }}
+
+            tick();
+            setInterval(tick, 1000);
+        </script>
+        """, height=60)
     else:
         st.caption("⚫ Manuel mod — butona basarak çalıştırın.")
 
@@ -338,7 +370,7 @@ if run_btn:
         val_results = run_validation_suite(grid=grid)
         st.session_state.val_results = val_results
 
-    _now = datetime.datetime.now()
+    _now = _now_tr()
     st.session_state.last_update_time = _now.strftime("%H:%M:%S")
     st.session_state.last_update_dt   = _now
 
