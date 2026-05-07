@@ -389,6 +389,7 @@ if run_btn:
     _now = _now_tr()
     st.session_state.last_update_time = _now.strftime("%H:%M:%S")
     st.session_state.last_update_dt   = _now
+    st.rerun()  # Sayfayı hemen yenile → JS timer elapsed_s=0 ile baştan başlar
 
     if not live_on:
         st.success("✅ Simülasyon tamamlandı!")
