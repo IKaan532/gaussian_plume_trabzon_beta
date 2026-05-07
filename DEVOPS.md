@@ -233,8 +233,9 @@ git push -u origin master
 
 ### RBAC — Runner'a Deploy Yetkisi Ver
 
-```bash
-kubectl apply -f - <<EOF
+`k8s/rbac.yaml` dosyası:
+
+```yaml
 apiVersion: v1
 kind: ServiceAccount       # Runner pod'unun Kubernetes API ile konuşacağı kimlik
 metadata:
@@ -245,7 +246,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role                 # Belirli bir namespace'de geçerli yetki tanımı
 metadata:
   name: deployer
-  namespace: ${APP_NAMESPACE}  # Yetki sadece bu namespace'de geçerli
+  namespace: gaussian-plume  # Yetki sadece bu namespace'de geçerli
 rules:
   - apiGroups: ["apps"]        # Deployment kaynağı "apps" API grubunda
     resources: ["deployments"] # Sadece Deployment'lara erişim ver
@@ -258,7 +259,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding           # ServiceAccount ile Role'ü birbirine bağla
 metadata:
   name: runner-deployer
-  namespace: ${APP_NAMESPACE}
+  namespace: gaussian-plume
 subjects:
   - kind: ServiceAccount
     name: runner-sa
@@ -267,7 +268,10 @@ roleRef:
   kind: Role
   name: deployer
   apiGroup: rbac.authorization.k8s.io
-EOF
+```
+
+```bash
+kubectl apply -f k8s/rbac.yaml   # ServiceAccount + Role + RoleBinding tek komutla uygula
 ```
 
 ### Runner Deploy
@@ -280,8 +284,11 @@ kubectl create namespace gitea-runner  # Runner için ayrı namespace
 kubectl create secret generic gitea-runner-token \
   --from-literal=token=<RUNNER_TOKEN> \ # Gitea'dan alınan registration token
   --namespace gitea-runner
+```
 
-kubectl apply -f - <<EOF
+`k8s/gitea-runner.yaml` dosyası:
+
+```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -323,7 +330,10 @@ spec:
             # Host'un Docker socket'ini kullan
             # Böylece runner, host'un Docker daemon'ını yönetebilir
             # image build/push için gerekli
-EOF
+```
+
+```bash
+kubectl apply -f k8s/gitea-runner.yaml   # Runner Deployment'ını uygula
 ```
 
 > **Docker socket mount:** Runner, host'un Docker daemon'ına erişerek image build & push yapabilir.
@@ -599,6 +609,93 @@ kubectl rollout status deployment/gaussian-plume -n gaussian-plume
 kubectl describe pod -n gaussian-plume <pod-name>
 # Pod hakkında detaylı bilgi: events, volume mount'lar, env değişkenleri
 # Pod başlamıyorsa hata ayıklamak için kullanılır
+```
+
+---
+
+## Uygulamayı Kapatma
+
+```bash
+kubectl scale deployment gaussian-plume -n gaussian-plume --replicas=0
+# Gaussian Plume pod'larını durdur
+
+kubectl scale deployment gitea -n gitea --replicas=0
+# Gitea pod'larını durdur
+
+kubectl scale deployment gitea-runner -n gitea-runner --replicas=0
+# CI/CD runner'ı durdur
+
+kubectl scale deployment monitoring-grafana -n monitoring --replicas=0
+# Grafana'yı durdur
+
+kubectl scale deployment monitoring-kube-state-metrics -n monitoring --replicas=0
+kubectl scale deployment monitoring-kube-prometheus-operator -n monitoring --replicas=0
+# Prometheus bileşenlerini durdur
+
+kubectl scale statefulset prometheus-monitoring-kube-prometheus-prometheus -n monitoring --replicas=0
+# Prometheus StatefulSet'ini durdur
+
+kubectl scale statefulset loki -n monitoring --replicas=0
+# Loki log sistemini durdur
+
+kubectl scale statefulset gitea-valkey-cluster -n gitea --replicas=0
+# Gitea cache cluster'ını durdur
+
+kubectl patch daemonset loki-promtail -n monitoring \
+  -p '{"spec":{"template":{"spec":{"nodeSelector":{"non-existing":"true"}}}}}'
+# Promtail DaemonSet'ini devre dışı bırak
+# DaemonSet'ler --replicas=0 kabul etmez → sahte nodeSelector ile durdurulur
+
+kubectl patch daemonset monitoring-prometheus-node-exporter -n monitoring \
+  -p '{"spec":{"template":{"spec":{"nodeSelector":{"non-existing":"true"}}}}}'
+# Node exporter DaemonSet'ini devre dışı bırak
+
+docker stop local-registry
+# Yerel Docker registry'yi durdur
+```
+
+---
+
+## Uygulamayı Açma
+
+Docker Desktop'ı başlat, ardından sırayla ayağa kaldır:
+
+```bash
+docker start local-registry
+# Yerel registry'yi başlat — image push/pull için gerekli
+
+kubectl scale deployment gitea -n gitea --replicas=1
+# Gitea'yı başlat → http://localhost:30880
+
+kubectl scale statefulset gitea-valkey-cluster -n gitea --replicas=3
+# Gitea cache cluster'ını başlat (3 replica gerekli)
+
+kubectl scale deployment gitea-runner -n gitea-runner --replicas=1
+# CI/CD runner'ı başlat
+
+kubectl scale deployment gaussian-plume -n gaussian-plume --replicas=2
+# Uygulamayı başlat → http://localhost:30501
+
+kubectl scale statefulset prometheus-monitoring-kube-prometheus-prometheus -n monitoring --replicas=1
+# Prometheus'u başlat
+
+kubectl scale deployment monitoring-grafana -n monitoring --replicas=1
+# Grafana'yı başlat → http://localhost:30300
+
+kubectl scale deployment monitoring-kube-state-metrics -n monitoring --replicas=1
+kubectl scale deployment monitoring-kube-prometheus-operator -n monitoring --replicas=1
+# Prometheus bileşenlerini başlat
+
+kubectl scale statefulset loki -n monitoring --replicas=1
+# Loki'yi başlat
+
+kubectl patch daemonset loki-promtail -n monitoring \
+  -p '{"spec":{"template":{"spec":{"nodeSelector":null}}}}'
+# Promtail DaemonSet'ini tekrar etkinleştir (nodeSelector'ı kaldır)
+
+kubectl patch daemonset monitoring-prometheus-node-exporter -n monitoring \
+  -p '{"spec":{"template":{"spec":{"nodeSelector":null}}}}'
+# Node exporter'ı tekrar etkinleştir
 ```
 
 ---
