@@ -35,11 +35,12 @@ jobs:
           docker push localhost:5000/gaussian-plume:latest
 
       - name: Kubernetes deploy
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
           curl -sLO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl"
           chmod +x kubectl
-          ./kubectl rollout restart deployment/gaussian-plume \
-            --namespace=gaussian-plume \
-            --server=https://kubernetes.default.svc.cluster.local \
-            --token=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token) \
-            --insecure-skip-tls-verify
+          mkdir -p ~/.kube
+          echo "$KUBE_CONFIG" | base64 -d > ~/.kube/config
+          sed -i 's/kubernetes.docker.internal/host.docker.internal/g' ~/.kube/config
+          ./kubectl rollout restart deployment/gaussian-plume --namespace=gaussian-plume --insecure-skip-tls-verify
