@@ -315,6 +315,7 @@ if run_btn:
                 )
                 with st.spinner("Yol segmentleri yükleniyor…"):
                     roads    = _load_raw_roads()
+                    st.session_state["roads_raw"] = roads
                     segments = _build_segs(roads, traffic_multiplier=traffic_mult)
                 result_line = run_scenario(sc_line, grid=grid, segments=segments)
                 st.session_state.result_line = result_line
@@ -384,14 +385,16 @@ if result is not None:
                 st.markdown(
                     "**Birleşik görünüm** — Mavi: Nokta kaynak · Turuncu/Kırmızı: Çizgi kaynak (yol ağı)"
                 )
-                fig_mb = plot_mapbox_combined(result_point, result_line, zoom=13)
+                _roads_for_plot = st.session_state.get("roads_raw")
+                fig_mb = plot_mapbox_combined(result_point, result_line, zoom=13, roads=_roads_for_plot)
             else:
                 st.markdown(
                     f"**{sc.description}**  |  "
                     f"Rüzgar: {sc.wind_speed} m/s, {sc.wind_direction:.0f}° yönünden  |  "
                     f"Baca/Salım yüksekliği: {sc.stack_height:.0f} m"
                 )
-                fig_mb = plot_mapbox(result, zoom=13)
+                _roads_for_plot = st.session_state.get("roads_raw") if not is_point else None
+                fig_mb = plot_mapbox(result, zoom=13, roads=_roads_for_plot)
             st.plotly_chart(fig_mb, use_container_width=True)
             st.caption(
                 "© OpenStreetMap katkıcıları  |  "

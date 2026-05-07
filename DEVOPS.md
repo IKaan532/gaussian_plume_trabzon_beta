@@ -609,93 +609,51 @@ kubectl rollout status deployment/gaussian-plume -n gaussian-plume
 kubectl describe pod -n gaussian-plume <pod-name>
 # Pod hakkında detaylı bilgi: events, volume mount'lar, env değişkenleri
 # Pod başlamıyorsa hata ayıklamak için kullanılır
-```
 
----
+# ── Log Kontrolleri ─────────────────────────────────────────────────────────
 
-## Uygulamayı Kapatma
+# Gaussian-plume uygulama logları (canlı izleme)
+kubectl logs -n gaussian-plume -l app=gaussian-plume -f
+# -f: follow → yeni satırlar geldikçe ekrana yazar; Ctrl+C ile çık
 
-```bash
-kubectl scale deployment gaussian-plume -n gaussian-plume --replicas=0
-# Gaussian Plume pod'larını durdur
+# Gaussian-plume — son 100 satır
+kubectl logs -n gaussian-plume -l app=gaussian-plume --tail=100
 
-kubectl scale deployment gitea -n gitea --replicas=0
-# Gitea pod'larını durdur
+# Gitea logları
+kubectl logs -n gitea -l app.kubernetes.io/name=gitea --tail=50
+# Gitea'nın git işlemleri, kullanıcı hataları burada görünür
 
-kubectl scale deployment gitea-runner -n gitea-runner --replicas=0
-# CI/CD runner'ı durdur
+# Gitea configure-gitea init container logu (başlamıyorsa buraya bak)
+kubectl logs -n gitea <gitea-pod-adı> -c configure-gitea
+# Pod adını öğrenmek için: kubectl get pods -n gitea
 
-kubectl scale deployment monitoring-grafana -n monitoring --replicas=0
-# Grafana'yı durdur
+# Gitea runner logları
+kubectl logs -n gitea-runner -l app=gitea-runner --tail=50 -f
+# Pipeline adımlarının gerçek çıktısı burada görünür
 
-kubectl scale deployment monitoring-kube-state-metrics -n monitoring --replicas=0
-kubectl scale deployment monitoring-kube-prometheus-operator -n monitoring --replicas=0
-# Prometheus bileşenlerini durdur
+# Prometheus logları
+kubectl logs -n monitoring -l app.kubernetes.io/name=prometheus --tail=50
+# Scrape hataları, alerting sorunları burada görünür
 
-kubectl scale statefulset prometheus-monitoring-kube-prometheus-prometheus -n monitoring --replicas=0
-# Prometheus StatefulSet'ini durdur
+# Grafana logları
+kubectl logs -n monitoring -l app.kubernetes.io/name=grafana --tail=50
+# Datasource bağlantı hataları, provisioning sorunları burada görünür
 
-kubectl scale statefulset loki -n monitoring --replicas=0
-# Loki log sistemini durdur
+# Loki logları
+kubectl logs -n monitoring -l app=loki --tail=50
+# Log ingestion hataları burada görünür
 
-kubectl scale statefulset gitea-valkey-cluster -n gitea --replicas=0
-# Gitea cache cluster'ını durdur
+# Promtail logları (log toplama ajanı)
+kubectl logs -n monitoring -l app=loki-promtail --tail=50
+# Hangi dosyaları okuduğunu, Loki'ye gönderip göndermediğini gösterir
 
-kubectl patch daemonset loki-promtail -n monitoring \
-  -p '{"spec":{"template":{"spec":{"nodeSelector":{"non-existing":"true"}}}}}'
-# Promtail DaemonSet'ini devre dışı bırak
-# DaemonSet'ler --replicas=0 kabul etmez → sahte nodeSelector ile durdurulur
+# Önceki (crash olan) container'ın loglarını gör
+kubectl logs -n <namespace> <pod-adı> --previous
+# CrashLoopBackOff durumunda crash öncesi logu okumak için kullanılır
 
-kubectl patch daemonset monitoring-prometheus-node-exporter -n monitoring \
-  -p '{"spec":{"template":{"spec":{"nodeSelector":{"non-existing":"true"}}}}}'
-# Node exporter DaemonSet'ini devre dışı bırak
-
-docker stop local-registry
-# Yerel Docker registry'yi durdur
-```
-
----
-
-## Uygulamayı Açma
-
-Docker Desktop'ı başlat, ardından sırayla ayağa kaldır:
-
-```bash
-docker start local-registry
-# Yerel registry'yi başlat — image push/pull için gerekli
-
-kubectl scale deployment gitea -n gitea --replicas=1
-# Gitea'yı başlat → http://localhost:30880
-
-kubectl scale statefulset gitea-valkey-cluster -n gitea --replicas=3
-# Gitea cache cluster'ını başlat (3 replica gerekli)
-
-kubectl scale deployment gitea-runner -n gitea-runner --replicas=1
-# CI/CD runner'ı başlat
-
-kubectl scale deployment gaussian-plume -n gaussian-plume --replicas=2
-# Uygulamayı başlat → http://localhost:30501
-
-kubectl scale statefulset prometheus-monitoring-kube-prometheus-prometheus -n monitoring --replicas=1
-# Prometheus'u başlat
-
-kubectl scale deployment monitoring-grafana -n monitoring --replicas=1
-# Grafana'yı başlat → http://localhost:30300
-
-kubectl scale deployment monitoring-kube-state-metrics -n monitoring --replicas=1
-kubectl scale deployment monitoring-kube-prometheus-operator -n monitoring --replicas=1
-# Prometheus bileşenlerini başlat
-
-kubectl scale statefulset loki -n monitoring --replicas=1
-# Loki'yi başlat
-
-kubectl patch daemonset loki-promtail -n monitoring \
-  -p '{"spec":{"template":{"spec":{"nodeSelector":null}}}}'
-# Promtail DaemonSet'ini tekrar etkinleştir (nodeSelector'ı kaldır)
-
-kubectl patch daemonset monitoring-prometheus-node-exporter -n monitoring \
-  -p '{"spec":{"template":{"spec":{"nodeSelector":null}}}}'
-# Node exporter'ı tekrar etkinleştir
+# Tüm namespace'lerde hata veren pod'ları filtrele
+kubectl get pods -A | grep -v Running | grep -v Completed
+# Running veya Completed olmayanları listeler → sorunlu pod'ları hızlıca bulur
 ```
 
 ---
@@ -730,4 +688,120 @@ kubectl patch daemonset monitoring-prometheus-node-exporter -n monitoring \
 │  │                      [promtail] ──► loki          │   │
 │  └──────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Uygulamayı Kapatma
+
+Bilgisayarı kapatmadan önce veya servisler gerekmediğinde aşağıdaki sırayla kapat:
+
+```bash
+# 1) Gaussian-plume uygulamasını sıfır replikaya indir (pod silinir, deployment kalır)
+kubectl scale deployment/gaussian-plume --replicas=0 -n gaussian-plume
+# replicas=0 → pod yok, deployment yaml'ı kaybolmaz; tekrar açmak kolay
+
+# 2) Gitea Actions runner'ı durdur
+kubectl scale deployment/gitea-runner --replicas=0 -n gitea-runner
+# CI/CD tetiklenemez; runner kaydı Gitea'da kalır
+
+# 3) Gitea ve Valkey'i durdur
+kubectl scale deployment/gitea -n gitea --replicas=0
+# Gitea UI ve Git servisi kapanır; veritabanı PVC'de saklanır
+kubectl scale statefulset/gitea-valkey-cluster -n gitea --replicas=0
+# Valkey (cache/session) durdurulur; Gitea açılırken 3 replica ile başlatılmalı
+
+# 4) Monitoring stack'i durdur — Prometheus & Grafana
+kubectl scale deployment/monitoring-grafana --replicas=0 -n monitoring
+kubectl scale deployment/monitoring-kube-state-metrics --replicas=0 -n monitoring
+kubectl scale deployment/monitoring-kube-prometheus-operator --replicas=0 -n monitoring
+# StatefulSet olan Prometheus'u da durdur
+kubectl scale statefulset/prometheus-monitoring-kube-prometheus-prometheus --replicas=0 -n monitoring
+
+# 5) Loki'yi durdur
+kubectl scale statefulset/loki -n monitoring --replicas=0
+# Log toplama durur; veriler PVC'de kalır
+
+# 6) Promtail ve node-exporter DaemonSet'lerini dondur (replicas komutu çalışmaz → nodeSelector hilesi)
+kubectl patch daemonset/loki-promtail -n monitoring \
+  --type=json \
+  -p='[{"op":"add","path":"/spec/template/spec/nodeSelector","value":{"non-existing":"true"}}]'
+kubectl patch daemonset/monitoring-prometheus-node-exporter -n monitoring \
+  --type=json \
+  -p='[{"op":"add","path":"/spec/template/spec/nodeSelector","value":{"non-existing":"true"}}]'
+# nodeSelector eşleşmediği için pod schedule edilmez → tüm pod'lar silinir
+
+# 7) Local registry'yi durdur (Docker container)
+docker stop local-registry
+# Registry container durur; image katmanları Docker volume'da kalır
+
+# 8) Tüm pod'ların kapandığını doğrula
+kubectl get pods -A
+# Beklenen çıktı: kube-system dışında Running pod olmamalı
+```
+
+> **Not:** Docker Desktop'ı kapatmana gerek yok. Kubernetes açık kalabilir, sadece uygulama pod'ları kapalıdır.
+
+---
+
+## Uygulamayı Açma
+
+Servisleri tekrar başlatmak için aşağıdaki sırayı izle:
+
+```bash
+# 1) Local Docker registry'yi başlat
+docker start local-registry
+# local-registry container tekrar ayağa kalkar → :5000 erişilebilir olur
+
+# 2) Gitea Valkey cluster'ını başlat (önce Valkey, sonra Gitea — zorunlu sıra)
+kubectl scale statefulset/gitea-valkey-cluster -n gitea --replicas=3
+# Valkey cluster modu için minimum 3 node gerekir; 1 replica ile cluster kurulamaz
+# 3 pod da Running 1/1 olana kadar bekle:
+kubectl get pods -n gitea -w
+# Tüm valkey pod'ları hazır olunca Ctrl+C ile çık
+
+# 3) Gitea'yı başlat
+kubectl scale deployment/gitea -n gitea --replicas=1
+# Gitea pod başlayana kadar bekle
+kubectl rollout status deployment/gitea -n gitea
+# "successfully rolled out" mesajı gelince devam et
+
+# 4) Gitea runner'ı başlat
+kubectl scale deployment/gitea-runner --replicas=1 -n gitea-runner
+# Runner Gitea'ya bağlanır ve "Idle" durumuna geçer
+
+# 5) Gaussian-plume uygulamasını başlat
+kubectl scale deployment/gaussian-plume --replicas=1 -n gaussian-plume
+kubectl rollout status deployment/gaussian-plume -n gaussian-plume
+# Uygulama http://localhost:30501 adresinde erişilebilir olur
+
+# 6) Prometheus & Grafana'yı başlat
+kubectl scale deployment/monitoring-grafana --replicas=1 -n monitoring
+kubectl scale deployment/monitoring-kube-state-metrics --replicas=1 -n monitoring
+kubectl scale deployment/monitoring-kube-prometheus-operator --replicas=1 -n monitoring
+kubectl scale statefulset/prometheus-monitoring-kube-prometheus-prometheus --replicas=1 -n monitoring
+# Grafana: http://localhost:30300  (admin / prom-operator)
+# Prometheus: http://localhost:30090
+
+# 7) Loki'yi başlat
+kubectl scale statefulset/loki -n monitoring --replicas=1
+
+# 8) Promtail ve node-exporter DaemonSet'lerini geri aç (nodeSelector'ı kaldır)
+kubectl patch daemonset/loki-promtail -n monitoring \
+  --type=json \
+  -p='[{"op":"remove","path":"/spec/template/spec/nodeSelector"}]'
+kubectl patch daemonset/monitoring-prometheus-node-exporter -n monitoring \
+  --type=json \
+  -p='[{"op":"remove","path":"/spec/template/spec/nodeSelector"}]'
+# nodeSelector kaldırılır → pod'lar tekrar schedule edilir ve log toplamaya başlar
+
+# 9) Tüm servislerin ayakta olduğunu doğrula
+kubectl get pods -A
+# Tüm pod'lar Running/Ready olmalı
+
+# Hızlı erişim adresleri:
+# Uygulama  → http://localhost:30501
+# Gitea     → http://localhost:30880
+# Grafana   → http://localhost:30300
+# Prometheus→ http://localhost:30090
 ```
