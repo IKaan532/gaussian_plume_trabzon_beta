@@ -4,7 +4,7 @@ app.py — Streamlit Web Interface for Gaussian Plume Simulation
 Çalıştır:
     streamlit run app.py
 
-Canlı mod etkinleştirildiğinde uygulama her 2.5 dakikada bir
+Canlı mod etkinleştirildiğinde uygulama her 25 saniyede bir
 OWM API'den hava verisini çekip simülasyonu otomatik yeniler.
 
 OWM_API_KEY ortam değişkeni veya .env dosyasında tanımlanmalıdır.
@@ -38,7 +38,7 @@ from visualization import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-REFRESH_INTERVAL_MS = 150_000
+REFRESH_INTERVAL_MS = 25_000
 _TZ_TR = datetime.timezone(datetime.timedelta(hours=3))  # UTC+3 Türkiye
 
 def _now_tr() -> datetime.datetime:
@@ -112,16 +112,16 @@ with st.sidebar:
 
     st.divider()
     live_on = st.toggle(
-        "🔴 Canlı Mod  (2.5 dk'da bir otomatik güncelle)",
+        "🔴 Canlı Mod  (25 sn'de bir otomatik güncelle)",
         value = st.session_state.auto_refresh,
-        help  = "Etkinleştirildiğinde OWM API'den her 2.5 dakikada bir "
+        help  = "Etkinleştirildiğinde OWM API'den her 25 saniyede bir "
                 "gerçek zamanlı hava verisi çekilerek simülasyon yenilenir.",
     )
     st.session_state.auto_refresh = live_on
 
     if live_on:
         now          = _now_tr()
-        next_refresh = now + datetime.timedelta(seconds=150)
+        next_refresh = now + datetime.timedelta(seconds=25)
 
         if st.session_state.last_update_time:
             st.success(
@@ -133,7 +133,7 @@ with st.sidebar:
 
         last_dt     = st.session_state.last_update_dt
         elapsed_s   = max((now - last_dt).total_seconds(), 0.0) if last_dt else 0.0
-        remaining_s = max(150.0 - elapsed_s, 0.0)
+        remaining_s = max(25.0 - elapsed_s, 0.0)
 
         st_html.html(f"""
         <div style="font-family:sans-serif; font-size:13px; color:#555; margin-bottom:4px;">
@@ -143,7 +143,7 @@ with st.sidebar:
             <div id="prog-bar" style="background:#e74c3c; height:8px; border-radius:6px; width:0%;"></div>
         </div>
         <div style="font-size:12px; color:#888;">
-            <span id="elapsed">0</span>s / 150s
+            <span id="elapsed">0</span>s / 25s
         </div>
         <script>
             var remaining = {int(remaining_s)};
@@ -613,7 +613,7 @@ else:
 st.divider()
 if live_on:
     st.caption(
-        f"🔴 **CANLI MOD AKTİF** — Her **2.5 dakikada** bir otomatik güncelleniyor  |  "
+        f"🔴 **CANLI MOD AKTİF** — Her **25 saniyede** bir otomatik güncelleniyor  |  "
         f"Gaussian Plume Modeli · Trabzon Pilot  |  "
         f"OWM · OSM Overpass · EMEP/EEA"
     )
