@@ -1,13 +1,3 @@
-"""
-visualization.py — Heatmaps, Interactive Maps & Animations
-
-Provides:
-  - plot_heatmap()      → matplotlib figure (PNG export, no map background)
-  - plot_mapbox()       → Plotly Densitymapbox on real OpenStreetMap tiles (Trabzon)
-  - plot_folium()       → Folium HeatMap on OpenStreetMap with Trabzon basemap
-  - create_animation()  → rotating-wind GIF (matplotlib FuncAnimation)
-  - concentration_to_csv() / save_summary_csv()
-"""
 
 from __future__ import annotations
 
@@ -59,7 +49,6 @@ def plot_heatmap(
     output_path: Optional[str | Path] = None,
     figsize: tuple[float, float] = (9, 7),
 ) -> plt.Figure:
-    """Static matplotlib figure — concentration field in geographic coords."""
     grid = result.grid
     cq   = result.concentration
     sc   = result.scenario
@@ -102,7 +91,6 @@ def figure_to_png_bytes(fig: plt.Figure) -> bytes:
     return buf.read()
 
 def _draw_road_lines(fig: "go.Figure", roads: list[dict]) -> None:
-    """Raw road geometry (nodes listesi) kullanarak gerçek yol çizgileri ekler."""
     road_colors_map = {
         "motorway": "#e74c3c", "trunk": "#e67e22", "primary": "#f1c40f",
         "secondary": "#2ecc71", "tertiary": "#3498db", "residential": "#bdc3c7",
@@ -143,12 +131,6 @@ def plot_mapbox(
     output_path: Optional[str | Path] = None,
     zoom: int = 13,
 ) -> "go.Figure":
-    """
-    Concentration field as Densitymapbox on OpenStreetMap tiles.
-
-    No Mapbox token required (open-street-map style).
-    Visible in Streamlit via st.plotly_chart().
-    """
     if not HAS_PLOTLY:
         raise ImportError("plotly not installed.  pip install plotly")
 
@@ -309,11 +291,6 @@ def plot_folium(
     output_path: Optional[str | Path] = None,
     max_zoom: int = 16,
 ) -> "folium.Map":
-    """
-    Folium map with HeatMap plugin overlay.
-
-    Shows Trabzon city on OpenStreetMap tiles with the concentration field.
-    """
     if not HAS_FOLIUM:
         raise ImportError("folium not installed.  pip install folium")
 
@@ -455,7 +432,6 @@ def create_animation(
     fps: int = 4,
     n_frames: int = 12,
 ) -> Path:
-    """Animate plume over a 360 deg wind-direction sweep and save as GIF."""
     if grid is None:
         grid = SimulationGrid(extent_m=4000.0, resolution_m=100.0)
 
@@ -504,10 +480,6 @@ def plot_mapbox_combined(
     output_path: Optional[str | Path] = None,
     zoom: int = 13,
 ) -> "go.Figure":
-    """
-    Hem nokta hem çizgi kaynağı tek haritada gösterir.
-    Her kaynak kendi Densitymapbox katmanına sahiptir.
-    """
     if not HAS_PLOTLY:
         raise ImportError("plotly not installed.")
 
@@ -642,7 +614,6 @@ def plot_mapbox_combined(
 
 
 def concentration_to_csv(result: ScenarioResult) -> pd.DataFrame:
-    """Flatten concentration grid to tidy DataFrame."""
     grid = result.grid
     return pd.DataFrame({
         "latitude":    grid.lat_grid.ravel(),
@@ -659,7 +630,6 @@ def save_summary_csv(
     val_results: list,
     output_path: str | Path = "summary.csv",
 ) -> pd.DataFrame:
-    """Per-scenario summary with R², RMSE, peak C/Q and conditions."""
     syn_val = next(
         (v for v in val_results if getattr(v, "r2", None) is not None), None
     )

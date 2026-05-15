@@ -1,9 +1,3 @@
-"""
-api_module.py — OpenWeatherMap API Integration
-
-All API key access goes through load_api_key(). No direct os.environ access
-elsewhere in the codebase.
-"""
 
 import os
 import datetime
@@ -21,11 +15,6 @@ from model import pasquill_stability_class, TRABZON_LAT, TRABZON_LON
 _OWM_BASE = "https://api.openweathermap.org/data/2.5"
 
 def load_api_key() -> str:
-    """
-    Load OWM_API_KEY from the environment.
-
-    Raises EnvironmentError with clear instructions if the variable is absent.
-    """
     key = os.environ.get("OWM_API_KEY", "").strip()
     if not key:
         raise EnvironmentError(
@@ -42,12 +31,6 @@ def fetch_current_weather(
     lon: float = TRABZON_LON,
     timeout: int = 10,
 ) -> dict:
-    """
-    Fetch current weather from OWM /weather endpoint.
-
-    Returns a parsed dict ready for use by the simulation (see parse_weather_data).
-    Raises requests.HTTPError on API errors.
-    """
     api_key = load_api_key()
     resp = requests.get(
         f"{_OWM_BASE}/weather",
@@ -63,11 +46,6 @@ def fetch_forecast(
     hours: int = 24,
     timeout: int = 10,
 ) -> list[dict]:
-    """
-    Fetch 3-hourly forecast from OWM /forecast endpoint.
-
-    Returns a list of parsed weather dicts (up to `hours` hours ahead).
-    """
     api_key = load_api_key()
     resp = requests.get(
         f"{_OWM_BASE}/forecast",
@@ -79,23 +57,6 @@ def fetch_forecast(
     return [parse_weather_data(item, is_forecast=True) for item in data.get("list", [])]
 
 def parse_weather_data(raw: dict, is_forecast: bool = False) -> dict:
-    """
-    Parse a raw OWM API JSON response into a clean meteorological dict.
-
-    Returns
-    -------
-    dict with keys:
-        wind_speed      (m/s)
-        wind_direction  (degrees, met convention: FROM direction)
-        temperature     (°C)
-        cloud_cover     (0–1 fraction)
-        humidity        (%)
-        pressure        (hPa)
-        is_daytime      (bool)
-        stability_class (str, Pasquill A–F)
-        description     (str)
-        timestamp       (datetime)
-    """
     wind      = raw.get("wind", {})
     main      = raw.get("main", {})
     clouds    = raw.get("clouds", {})
@@ -141,11 +102,6 @@ def parse_weather_data(raw: dict, is_forecast: bool = False) -> dict:
     }
 
 def default_weather(stability_class: Optional[str] = None) -> dict:
-    """
-    Return a default meteorological dataset for Trabzon (no API call).
-
-    Useful for offline testing and Docker environments without a key.
-    """
     sc = stability_class or "D"
     return {
         "wind_speed":      3.0,

@@ -1,10 +1,3 @@
-"""
-sources.py — Road Geometry & Emission Source Data
-
-Fetches road geometries from the Overpass API (OpenStreetMap) for Trabzon
-city centre and applies EMEP/EEA Tier 2 emission factors to build the
-line-source segment list consumed by GaussianPlumeModel.line_source_concentration.
-"""
 
 import math
 import logging
@@ -37,7 +30,6 @@ EMEP_EEA_NOX_G_PER_KM = {
     "residential": 0.70,
 }
 
-# EMEP/EEA Tier 2 — karışık filo ortalaması (g/araç-km)
 EMEP_EEA_CO2_G_PER_KM = {
     "motorway":    180.0,
     "trunk":       175.0,
@@ -77,7 +69,6 @@ DEFAULT_TRAFFIC_FLOW_VEH_PER_HOUR = {
 SEGMENT_LENGTH_M = 100.0
 
 def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Great-circle distance between two points (metres)."""
     R = 6_371_000.0
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
@@ -90,11 +81,6 @@ def _interpolate_segment(
     lat2: float, lon2: float,
     step_m: float,
 ) -> list[tuple[float, float, float]]:
-    """
-    Discretise a line between two points into sub-segments of ~step_m.
-
-    Returns list of (midpoint_lat, midpoint_lon, length_m) tuples.
-    """
     total = haversine_m(lat1, lon1, lat2, lon2)
     if total < 1.0:
         return []
@@ -114,12 +100,6 @@ def fetch_roads(
     bbox: tuple[float, float, float, float] = TRABZON_BBOX,
     timeout: int = 60,
 ) -> list[dict]:
-    """
-    Query Overpass API for road ways inside *bbox*.
-
-    Returns a list of raw way dicts: {id, tags, nodes: [(lat, lon), ...]}.
-    Falls back to an empty list with a warning on network/API errors.
-    """
     south, west, north, east = bbox
     query = _OVERPASS_QUERY.format(south=south, west=west, north=north, east=east)
 
@@ -159,7 +139,6 @@ def fetch_roads(
     return result if result else _fallback_roads()
 
 def _fallback_roads() -> list[dict]:
-    """Extended hardcoded road skeleton for Trabzon city centre (offline fallback)."""
     return [
         {
             "id": -1,
@@ -264,16 +243,6 @@ def build_segments(
     traffic_multiplier: float = 1.0,
     step_m: float = SEGMENT_LENGTH_M,
 ) -> list[dict]:
-    """
-    Convert raw road ways into emission-weighted point segments.
-
-    Each returned dict contains:
-        lat             – midpoint latitude
-        lon             – midpoint longitude
-        length_m        – segment length (m)
-        emission_factor – g/s/m  (NOx, EMEP/EEA Tier 2)
-        road_class      – highway tag value
-    """
     segments: list[dict] = []
 
     for road in roads:
@@ -309,11 +278,6 @@ def compute_road_emissions(
     roads: list[dict],
     traffic_multiplier: float = 1.0,
 ) -> dict[str, float]:
-    """
-    Tüm yol ağı için toplam emisyon miktarlarını hesaplar (g/s).
-
-    Döndürür: {"NOx": ..., "CO2": ..., "SOx": ..., "VOC": ...}
-    """
     totals = {"NOx": 0.0, "CO2": 0.0, "SOx": 0.0, "VOC": 0.0}
 
     for road in roads:
@@ -333,7 +297,6 @@ def compute_road_emissions(
         )
         road_len_km = road_len_m / 1000.0
 
-        # g/s = (g/araç-km) * (araç/saat) * (km) / 3600
         totals["NOx"] += EMEP_EEA_NOX_G_PER_KM[hw] * flow * road_len_km / 3600.0
         totals["CO2"] += EMEP_EEA_CO2_G_PER_KM[hw] * flow * road_len_km / 3600.0
         totals["SOx"] += EMEP_EEA_SOX_G_PER_KM[hw] * flow * road_len_km / 3600.0
@@ -347,6 +310,5 @@ def load_trabzon_segments(
     traffic_multiplier: float = 1.0,
     step_m: float = SEGMENT_LENGTH_M,
 ) -> list[dict]:
-    """Fetch roads and build segments in one call. Safe to call on startup."""
     roads = fetch_roads(bbox)
     return build_segments(roads, traffic_multiplier=traffic_multiplier, step_m=step_m)

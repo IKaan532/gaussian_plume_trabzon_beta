@@ -1,9 +1,3 @@
-"""
-model.py — Gaussian Plume Dispersion Model
-
-Implements Gaussian plume equation with Pasquill-Gifford-Briggs dispersion
-coefficients for point and line sources. Output is dimensionless C/Q (s/m³).
-"""
 
 import numpy as np
 from dataclasses import dataclass
@@ -32,7 +26,6 @@ def geo_to_local(
     lat: np.ndarray, lon: np.ndarray,
     ref_lat: float, ref_lon: float,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Geographic coords → local Cartesian (east_m, north_m)."""
     R = 6_371_000.0
     north = R * np.radians(lat - ref_lat)
     east  = R * np.radians(lon - ref_lon) * np.cos(np.radians(ref_lat))
@@ -42,27 +35,16 @@ def rotate_to_plume(
     east: np.ndarray, north: np.ndarray,
     wind_dir_deg: float,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Rotate (east, north) → (x_downwind, y_crosswind).
-
-    wind_dir_deg: meteorological convention — direction the wind blows FROM,
-                  measured clockwise from north (0° = wind from north → blows south).
-    """
     phi = np.radians(270.0 - wind_dir_deg)
     x_down  =  east * np.cos(phi) + north * np.sin(phi)
     y_cross = -east * np.sin(phi) + north * np.cos(phi)
     return x_down, y_cross
 
 def sigma_y(x_m: np.ndarray, sc: StabilityClass) -> np.ndarray:
-    """Horizontal dispersion coefficient σy (m). x_m in metres."""
     x_km = np.maximum(x_m, 1.0) / 1000.0
     return _SY_COEFFS[sc] * x_km * (1.0 + 0.0001 * x_km) ** (-0.5) * 1000.0
 
 def sigma_z(x_m: np.ndarray, sc: StabilityClass) -> np.ndarray:
-    """
-    Vertical dispersion coefficient σz (m). x_m in metres.
-    Capped at 500 m (practical atmospheric mixing height limit).
-    """
     x_km = np.maximum(x_m, 1.0) / 1000.0
     if   sc == 'A': sz = 0.200 * x_km * 1000.0
     elif sc == 'B': sz = 0.120 * x_km * 1000.0
@@ -75,7 +57,6 @@ def sigma_z(x_m: np.ndarray, sc: StabilityClass) -> np.ndarray:
 
 @dataclass
 class SimulationGrid:
-    """Rectangular grid centred on a geographic location."""
     center_lat: float = TRABZON_LAT
     center_lon: float = TRABZON_LON
     extent_m: float = 5000.0
@@ -95,12 +76,6 @@ class SimulationGrid:
         self.shape = self.east_grid.shape
 
 class GaussianPlumeModel:
-    """
-    Steady-state Gaussian plume model.
-
-    All concentration output is C/Q (s/m³).  Multiply by emission rate Q (g/s)
-    to obtain absolute concentration (g/m³).
-    """
 
     def __init__(
         self,
@@ -120,7 +95,6 @@ class GaussianPlumeModel:
         y_cross: np.ndarray,
         z_r: float = 0.0,
     ) -> np.ndarray:
-        """Evaluate C/Q (s/m³) at plume-coordinate positions."""
         H  = self.stack_height
         u  = self.wind_speed
         xp = np.maximum(x_down, 1.0)
@@ -145,7 +119,6 @@ class GaussianPlumeModel:
         source_lon: float,
         z_receptor: float = 0.0,
     ) -> np.ndarray:
-        """C/Q field (s/m³) for a single point source."""
         east, north = geo_to_local(grid.lat_grid, grid.lon_grid, source_lat, source_lon)
         xd, yc = rotate_to_plume(east, north, self.wind_direction)
         return self._kernel(xd, yc, z_receptor)
@@ -156,14 +129,6 @@ class GaussianPlumeModel:
         segments: list[dict],
         z_receptor: float = 0.0,
     ) -> np.ndarray:
-        """
-        C/Q_total field (s/m³) for a discretised road network.
-
-        Each segment dict must contain:
-            lat, lon        – midpoint coordinates
-            length_m        – segment length (m)
-            emission_factor – g s⁻¹ m⁻¹ (per metre of road)
-        """
         total_cq = np.zeros(grid.shape)
         total_q  = 0.0
 
@@ -179,7 +144,6 @@ class GaussianPlumeModel:
         return total_cq / total_q if total_q > 0 else total_cq
 
     def sigma_profiles(self, distances_m: np.ndarray) -> dict:
-        """Return σy / σz profiles along the centreline for diagnostics."""
         return {
             'distance_m': distances_m,
             'sigma_y_m':  sigma_y(distances_m, self.stability_class),
@@ -193,19 +157,6 @@ def pasquill_stability_class(
     solar_radiation: Optional[float] = None,
     is_daytime: bool = True,
 ) -> StabilityClass:
-    """
-    Determine Pasquill-Gifford stability class.
-
-    Uses the Turner (1970) look-up table approach.
-
-    Parameters
-    ----------
-    wind_speed      : m/s
-    temperature     : °C (used for insolation estimate when solar_radiation is None)
-    cloud_cover     : 0–1 fractional cloud cover
-    solar_radiation : W/m² direct solar irradiance (optional)
-    is_daytime      : True during daylight hours
-    """
     if is_daytime:
         if solar_radiation is not None:
             ins = 'strong' if solar_radiation > 600 else ('moderate' if solar_radiation > 300 else 'slight')

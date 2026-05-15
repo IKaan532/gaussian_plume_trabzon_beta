@@ -1,16 +1,3 @@
-"""
-main.py — CLI Entry Point
-
-Runs all four operational scenarios under different meteorological conditions,
-generates heatmap PNGs and HTML maps, an animated GIF, and summary.csv.
-
-Usage:
-    python main.py [--no-api] [--outdir ./output]
-
-Flags:
-    --no-api   Skip OWM API call; use default meteorological values instead.
-    --outdir   Directory for output files (created if absent). Default: ./output
-"""
 
 from __future__ import annotations
 

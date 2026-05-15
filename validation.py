@@ -1,13 +1,3 @@
-"""
-validation.py — Physical Consistency Tests & Statistical Metrics
-
-Three physical tests:
-  1. Wind-direction vs plume-movement consistency
-  2. Wind-speed vs concentration inverse relation
-  3. Source coordinate shift
-
-Plus R^2 and RMSE on a synthetic noisy dataset, targeting R^2 > 0.8.
-"""
 
 from __future__ import annotations
 
@@ -22,7 +12,6 @@ from model import GaussianPlumeModel, SimulationGrid, TRABZON_LAT, TRABZON_LON
 logger = logging.getLogger(__name__)
 
 def r_squared(observed: np.ndarray, predicted: np.ndarray) -> float:
-    """Coefficient of determination R^2."""
     obs_flat  = observed.ravel()
     pred_flat = predicted.ravel()
     ss_res = np.sum((obs_flat - pred_flat) ** 2)
@@ -30,7 +19,6 @@ def r_squared(observed: np.ndarray, predicted: np.ndarray) -> float:
     return float(1.0 - ss_res / ss_tot) if ss_tot > 0 else 0.0
 
 def rmse(observed: np.ndarray, predicted: np.ndarray) -> float:
-    """Root Mean Square Error."""
     return float(np.sqrt(np.mean((observed.ravel() - predicted.ravel()) ** 2)))
 
 def generate_synthetic_observations(
@@ -41,17 +29,6 @@ def generate_synthetic_observations(
     noise_fraction: float = 0.10,
     seed: int = 42,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Generate synthetic 'observed' concentrations = model output + Gaussian noise.
-
-    Parameters
-    ----------
-    noise_fraction : noise std as fraction of the peak concentration
-
-    Returns
-    -------
-    (C_observed, C_model) — both shaped like the grid
-    """
     rng     = np.random.default_rng(seed)
     C_model = model.point_source_concentration(grid, source_lat, source_lon)
     noise   = rng.normal(0.0, 1.0, C_model.shape) * noise_fraction * C_model
@@ -76,12 +53,6 @@ def test_wind_direction_vs_plume(
     source_lat: float = TRABZON_LAT,
     source_lon: float = TRABZON_LON,
 ) -> ValidationResult:
-    """
-    Test 1: Wind direction vs plume movement.
-
-    Run the model with wind from West (270°) and from East (90°).
-    The peak concentration location should shift by ~180° relative to source.
-    """
     if grid is None:
         grid = SimulationGrid(extent_m=3000.0, resolution_m=100.0)
 
@@ -110,12 +81,6 @@ def test_wind_speed_vs_concentration(
     source_lat: float = TRABZON_LAT,
     source_lon: float = TRABZON_LON,
 ) -> ValidationResult:
-    """
-    Test 2: Wind speed vs concentration inverse relation.
-
-    Doubling wind speed should roughly halve peak C/Q (1/u dependence).
-    Tolerance: ratio must be in [1.5, 2.5] (accommodates sigma changes).
-    """
     if grid is None:
         grid = SimulationGrid(extent_m=3000.0, resolution_m=100.0)
 
@@ -142,11 +107,6 @@ def test_wind_speed_vs_concentration(
 def test_source_coordinate_shift(
     grid: Optional[SimulationGrid] = None,
 ) -> ValidationResult:
-    """
-    Test 3: Shifting the source 500 m east should shift the plume peak 500 m east.
-
-    Tolerance: ±20% of the shift magnitude.
-    """
     if grid is None:
         grid = SimulationGrid(extent_m=4000.0, resolution_m=100.0)
 
@@ -190,11 +150,6 @@ def validate_on_synthetic_dataset(
     source_lat: float = TRABZON_LAT,
     source_lon: float = TRABZON_LON,
 ) -> ValidationResult:
-    """
-    Generate noisy synthetic 'observations' and fit the model.
-
-    R^2 target: > 0.8 (easily achieved at 10 % noise).
-    """
     if grid is None:
         grid = SimulationGrid(extent_m=3000.0, resolution_m=100.0)
 
@@ -226,11 +181,6 @@ def run_validation_suite(
     source_lat: float = TRABZON_LAT,
     source_lon: float = TRABZON_LON,
 ) -> list[ValidationResult]:
-    """
-    Run all validation tests and return results.
-
-    Tests are run even if earlier ones fail.
-    """
     suite = [
         test_wind_direction_vs_plume(grid, source_lat, source_lon),
         test_wind_speed_vs_concentration(grid, source_lat, source_lon),
@@ -243,7 +193,6 @@ def run_validation_suite(
     return suite
 
 def validation_summary(results: list[ValidationResult]) -> str:
-    """Human-readable summary of validation results."""
     lines = ["=== Validation Summary ==="]
     for r in results:
         status = "PASS" if r.passed else "FAIL"

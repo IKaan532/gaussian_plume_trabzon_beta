@@ -1,9 +1,3 @@
-"""
-scenarios.py — Simulation Scenario Definitions
-
-Defines the four operational scenarios (point/line source × stable/unstable)
-and provides a runner that returns concentration grids + metadata.
-"""
 
 from __future__ import annotations
 
@@ -98,16 +92,6 @@ def run_scenario(
     segments: Optional[list[dict]] = None,
     z_receptor: float = 0.0,
 ) -> ScenarioResult:
-    """
-    Execute a single scenario and return the concentration field.
-
-    Parameters
-    ----------
-    scenario    : Scenario definition (from BUILTIN_SCENARIOS or custom)
-    grid        : SimulationGrid (default: Trabzon 10 km × 10 km at 100 m res)
-    segments    : Road segments (required for line source scenarios)
-    z_receptor  : Receptor height in metres (default: ground level)
-    """
     if grid is None:
         grid = SimulationGrid()
 
@@ -158,11 +142,6 @@ def run_all_scenarios(
     segments: Optional[list[dict]] = None,
     scenarios: Optional[list[Scenario]] = None,
 ) -> list[ScenarioResult]:
-    """
-    Run all four built-in scenarios (or a custom list) and return results.
-
-    *segments* must be supplied; call sources.load_trabzon_segments() first.
-    """
     sc_list = scenarios or BUILTIN_SCENARIOS
     results = []
     for sc in sc_list:
@@ -188,7 +167,6 @@ def make_point_scenario(
     emission_rate:   float = 1.0,
     description:     str   = "",
 ) -> Scenario:
-    """Convenience factory for user-defined point source scenarios."""
     return Scenario(
         name            = name,
         source_type     = "point",
@@ -210,7 +188,6 @@ def make_line_scenario(
     stack_height:    float = 0.5,
     description:     str   = "",
 ) -> Scenario:
-    """Convenience factory for user-defined line source scenarios."""
     return Scenario(
         name            = name,
         source_type     = "line",

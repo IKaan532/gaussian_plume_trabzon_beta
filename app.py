@@ -1,14 +1,3 @@
-"""
-app.py — Streamlit Web Interface for Gaussian Plume Simulation
-
-Çalıştır:
-    streamlit run app.py
-
-Canlı mod etkinleştirildiğinde uygulama her 25 saniyede bir
-OWM API'den hava verisini çekip simülasyonu otomatik yeniler.
-
-OWM_API_KEY ortam değişkeni veya .env dosyasında tanımlanmalıdır.
-"""
 
 from __future__ import annotations
 
@@ -39,10 +28,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 REFRESH_INTERVAL_MS = 25_000
-_TZ_TR = datetime.timezone(datetime.timedelta(hours=3))  # UTC+3 Türkiye
+_TZ_TR = datetime.timezone(datetime.timedelta(hours=3))
 
 def _now_tr() -> datetime.datetime:
-    """UTC+3 Türkiye saatini döndürür (pod UTC'de çalışsa da doğru saat gösterir)."""
     return datetime.datetime.now(_TZ_TR).replace(tzinfo=None)
 
 st.set_page_config(
@@ -76,7 +64,6 @@ def _load_raw_roads() -> list[dict]:
     return fetch_roads()
 
 def _fetch_weather_live() -> dict:
-    """OWM API'den ÖNBELLEKSIZ anlık hava verisi çeker."""
     try:
         from api_module import fetch_current_weather
         return fetch_current_weather()
@@ -298,7 +285,6 @@ st.caption(
     "Harita: OpenStreetMap  |  Veri: OWM · OSM Overpass · EMEP/EEA"
 )
 
-# Canlı modda ilk açılışta veya her autorefresh döngüsünde simülasyon çalıştır
 _first_live_run = live_on and st.session_state.result is None
 
 if new_refresh_cycle or _first_live_run:
@@ -389,7 +375,7 @@ if run_btn:
     _now = _now_tr()
     st.session_state.last_update_time = _now.strftime("%H:%M:%S")
     st.session_state.last_update_dt   = _now
-    st.rerun()  # Sayfayı hemen yenile → JS timer elapsed_s=0 ile baştan başlar
+    st.rerun()
 
     if not live_on:
         st.success("✅ Simülasyon tamamlandı!")
@@ -424,13 +410,10 @@ if result is not None:
         delta="canlı" if live_on else "manuel",
     )
 
-    # ── Kirlilik Emisyon Göstergesi ──────────────────────────────────────────
     st.divider()
     st.subheader("🏭 Anlık Emisyon Oranları")
 
     if is_point or is_combined:
-        # Nokta kaynak: kullanıcının girdiği Q değerini baz al
-        # Endüstriyel baca için tipik kirletici oranları (NOx=1 birim esas)
         q = float(emission_rate)
         point_em = {
             "NOx": q,
@@ -442,7 +425,7 @@ if result is not None:
             em_data = point_em
             em_label = "Nokta Kaynak (Endüstriyel Baca)"
         else:
-            em_data = point_em  # combined: nokta göster, çizgi ayrı
+            em_data = point_em
 
     if is_line or is_combined:
         from sources import compute_road_emissions
@@ -453,7 +436,6 @@ if result is not None:
             em_label = "Çizgi Kaynak (Yol Ağı)"
 
     if is_combined:
-        # İkisini topla
         em_data  = {k: point_em[k] + line_em[k] for k in point_em}
         em_label = "Toplam (Nokta + Yol Ağı)"
 
@@ -481,7 +463,6 @@ if result is not None:
     st.plotly_chart(_bar, use_container_width=True)
     st.caption("Kaynak: EMEP/EEA Hava Kirliliği Emisyon Envanter Rehberi — Tier 2 faktörleri")
     st.divider()
-    # ─────────────────────────────────────────────────────────────────────────
 
     tab_osm, tab_metrics, tab_export = st.tabs([
         "🌍 OSM Haritası",
