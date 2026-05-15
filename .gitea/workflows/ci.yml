@@ -16,8 +16,8 @@ jobs:
 
       - name: Docker image build
         run: |
-          docker build -t localhost:5000/gaussian-plume:${{ gitea.sha }} .
-          docker tag localhost:5000/gaussian-plume:${{ gitea.sha }} localhost:5000/gaussian-plume:latest
+          docker build -t local-registry:5000/gaussian-plume:${{ gitea.sha }} .
+          docker tag local-registry:5000/gaussian-plume:${{ gitea.sha }} local-registry:5000/gaussian-plume:latest
 
       - name: Trivy — Zafiyet & Secret & Konfigürasyon Taraması
         run: |
@@ -29,12 +29,12 @@ jobs:
             --scanners vuln,secret,misconfig \
             --severity MEDIUM,HIGH,CRITICAL \
             --format table \
-            localhost:5000/gaussian-plume:${{ gitea.sha }}
+            local-registry:5000/gaussian-plume:${{ gitea.sha }}
 
       - name: Registry push
         run: |
-          docker push localhost:5000/gaussian-plume:${{ gitea.sha }}
-          docker push localhost:5000/gaussian-plume:latest
+          docker push local-registry:5000/gaussian-plume:${{ gitea.sha }}
+          docker push local-registry:5000/gaussian-plume:latest
 
       - name: Kubernetes deploy
         env:
