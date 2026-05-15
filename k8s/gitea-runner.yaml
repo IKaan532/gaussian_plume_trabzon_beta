@@ -23,7 +23,7 @@ spec:
             - name: DOCKER_TLS_CERTDIR
               value: ""
           args:
-            - --insecure-registry=local-registry:5000
+            - --insecure-registry=host.docker.internal:5000
           volumeMounts:
             - name: docker-sock
               mountPath: /var/run
