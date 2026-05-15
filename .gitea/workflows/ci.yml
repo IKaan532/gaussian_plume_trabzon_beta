@@ -45,6 +45,7 @@ jobs:
           mkdir -p ~/.kube
           echo "$KUBE_CONFIG" | base64 -d > ~/.kube/config
           sed -i 's/kubernetes.docker.internal/host.docker.internal/g' ~/.kube/config
+          sed -i 's/127.0.0.1/host.docker.internal/g' ~/.kube/config
           ./kubectl apply -f k8s/deployment.yaml --namespace=gaussian-plume --insecure-skip-tls-verify
           ./kubectl apply -f k8s/service.yaml --namespace=gaussian-plume --insecure-skip-tls-verify
           ./kubectl rollout restart deployment/gaussian-plume --namespace=gaussian-plume --insecure-skip-tls-verify
