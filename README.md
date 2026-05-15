@@ -110,9 +110,12 @@ kubectl create secret generic owm-api-key \
 # Deploy et
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
+
+# Port-forward ile eriş (kind cluster'da NodePort çalışmaz)
+kubectl port-forward -n gaussian-plume svc/gaussian-plume 8501:8501 &
 ```
 
-`http://localhost:30501` adresinden erişilebilir.
+`http://localhost:8501` adresinden erişilebilir.
 
 ---
 
@@ -147,9 +150,8 @@ gaussian_plume_trabzon/
 │   ├── service.yaml    # NodePort Service
 │   ├── rbac.yaml       # Runner için ServiceAccount + Role
 │   └── gitea-runner.yaml
-├── .gitea/workflows/
-│   └── ci.yml          # CI/CD pipeline (build → trivy → push → deploy)
-└── DEVOPS.md           # Yerel DevOps kılavuzu
+└── .gitea/workflows/
+    └── ci.yml          # CI/CD pipeline (build → trivy → push → deploy)
 ```
 
 ---
@@ -180,7 +182,7 @@ git push → master
 │  ┌──────────────────────────────────────────────┐   │
 │  │          Kubernetes Cluster                   │   │
 │  │                                               │   │
-│  │  gaussian-plume  [pod1][pod2]  :30501         │   │
+│  │  gaussian-plume  [pod1][pod2]  →:8501          │   │
 │  │  monitoring      [prometheus]  :30090         │   │
 │  │                  [grafana]     :30300         │   │
 │  │                  [loki]                       │   │
@@ -254,8 +256,8 @@ flowchart TD
 
 | Servis | Adres |
 |---|---|
-| Gaussian Plume App | http://localhost:30501 |
+| Gaussian Plume App | http://localhost:8501 |
 | Gitea | http://localhost:30880 |
-| Grafana | http://localhost:30300 |
-| Prometheus | http://localhost:30090 |
+| Grafana | http://localhost:3000 |
+| Prometheus | http://localhost:9090 |
 | Docker Registry | http://localhost:5000 |
